@@ -1,0 +1,123 @@
+---
+title: "PlotBypassGDExperiments"
+author: "Scott Leighow"
+date: '2022-07-26'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+library(ggplot2)
+library(reshape2)
+library(ggbreak)
+```
+
+
+## Import and parse data
+
+```{r}
+counts.df = read.csv("BypassPC9Counts.csv",header=T,stringsAsFactors=F)
+
+counts.df$day = as.numeric(gsub("D","",counts.df$day))
+counts.df$gene.drive.status = gsub("'","",counts.df$gene.drive.status)
+counts.df$replicate = gsub("rep","",counts.df$replicate)
+
+counts.df$sen = as.numeric(gsub(",","",counts.df$sen))
+counts.df$res = as.numeric(gsub(",","",counts.df$res))
+counts.df$gd = as.numeric(gsub(",","",counts.df$gd))
+
+counts.df$sen[counts.df$day==0] = 1250 
+
+# Reshape
+
+counts.rs = melt(counts.df,id.vars=c("resistance.genotype","gene.drive.status","replicate","day"))
+
+```
+
+## Loop through conditions and plot
+
+```{r}
+muts = counts.df$resistance.genotype[1:9]
+GD.status = c("-GD","+GD")
+
+cndtns = expand.grid(mut = muts,GD.status = GD.status)
+
+# Just focus on +GD, bypass (no ELC)
+cndtns = cndtns[cndtns$GD.status=="+GD"&cndtns$mut!="ELC",]
+
+mut.key = list(abbr = c("EA","CR","CT","F1","F2","F3","F4","BV"),
+               full.name = c("EML4-ALK","CCDC6-RET","CD74-TrkA","FGFR1-TACC1","FGFR2-MCU","FGFR3-TACC3","FGFR4 V550E","BRAF V600E"))
+
+for (i in 1:nrow(cndtns)) {
+  
+  mut.i = cndtns$mut[i]
+  GD.stat.i = cndtns$GD.status[i]
+  
+  sub.counts = counts.rs[counts.rs$resistance.genotype==mut.i&counts.df$gene.drive.status==GD.stat.i,]
+  
+  # Aggregate counts
+  sub.agg = aggregate(sub.counts$value,
+                      by = list(genotype=sub.counts$resistance.genotype,
+                                GD.stat=sub.counts$gene.drive.status,
+                                day=sub.counts$day,
+                                population = sub.counts$variable),
+                     FUN = function(x) c(mean=mean(x),sem=sd(x)/sqrt(length(x))))
+  sub.agg = do.call(data.frame,sub.agg)
+  
+  sub.agg = rbind(sub.agg,
+                  data.frame(genotype=mut.i,
+                             GD.stat=GD.stat.i,
+                             day=40,
+                             population=c("sen","res","gd"),
+                             x.mean=0,
+                             x.sem=0)) # append counts for final count
+  
+  # Remove GFP counts for -GD
+  if (GD.stat.i=="-GD") {
+    sub.agg = sub.agg[sub.agg$population!="gd",]
+    clrs = c("#2ABAFC","#EE1D23")
+  } else {
+    clrs = c("#2ABAFC","#EE1D23","#1AD31A")
+  }
+  
+  sclng.fctr = 1/10 # Counts are in 10 uL; scale to get k counts in 1 mL cell suspension
+  y.max = 1.2*max(c(sub.agg$x.mean,sub.agg$x.mean+sub.agg$x.sem),na.rm=T)*sclng.fctr # set y.max to have enough room for arrows in figure
+  
+  # Plot
+  g = ggplot(sub.agg,aes(x=day,y=x.mean*sclng.fctr,color=population))+theme_bw()+
+      geom_errorbar(aes(ymin=(x.mean-x.sem)*sclng.fctr,ymax=(x.mean+x.sem)*sclng.fctr),width=0.5,size=1.25)+
+    geom_line(size=2)+
+    geom_point(size=4)+
+    scale_color_manual(values=clrs)+
+    ggtitle(mut.key$full.name[mut.key$abbr==mut.i])+
+    xlab("Days")+ylab("Population Size (k)")+
+    scale_x_break(c(24,39))+
+    scale_x_continuous(breaks=c(0,10,20,40),limits=c(0,41))+
+    ylim(c(0,y.max))+
+   theme(
+    plot.title = element_text(size=22,face="bold",hjust=0.5),
+    axis.title = element_text(size=20,face="bold"),
+    axis.text = element_text(size=18,face="bold",color="black"),
+    legend.title = element_text(size=18,face="bold"),
+    legend.text = element_text(size=16,face="bold"),
+    axis.text.x.top = element_blank(),
+    axis.ticks.x.top = element_blank()
+  )+
+  guides(color="none")
+  
+  print(g)
+  
+  ggsave(paste0("PC9Bypass_",mut.i,".png"),width=5,height=5)
+  
+  # # Check to see if we're ready to flip that switch
+  # if (GD.stat.i=="+GD") {
+  #   cnts = sum(sub.agg$x.mean[sub.agg$day==14])
+  #   swtch2.str = cnts>750
+  #   print(paste(mut.i,round(cnts),swtch2.str))
+  # }
+  
+}
+```
+
+
