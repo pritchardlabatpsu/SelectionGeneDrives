@@ -1,0 +1,81 @@
+INFO  @ Sat, 03 Sep 2022 12:43:08: Parameters: /Users/smleighow/opt/anaconda3/envs/mageck-vispr/bin/mageck mle --count-table GuideCounts.txt --design-matrix DesignMatrix.txt --norm-method control --control-sgrna NonTargetingControls.txt --output-prefix MLEResult 
+INFO  @ Sat, 03 Sep 2022 12:43:09: Cannot parse design matrix as a string; try to parse it as a file name ... 
+INFO  @ Sat, 03 Sep 2022 12:43:09: Design matrix: 
+INFO  @ Sat, 03 Sep 2022 12:43:09: [[1. 0. 0.] 
+INFO  @ Sat, 03 Sep 2022 12:43:09:  [1. 1. 0.] 
+INFO  @ Sat, 03 Sep 2022 12:43:09:  [1. 1. 0.] 
+INFO  @ Sat, 03 Sep 2022 12:43:09:  [1. 0. 1.] 
+INFO  @ Sat, 03 Sep 2022 12:43:09:  [1. 0. 1.]] 
+INFO  @ Sat, 03 Sep 2022 12:43:09: Beta labels:baseline,DMSO,osi 
+INFO  @ Sat, 03 Sep 2022 12:43:09: Included samples:D0,DMSO_rep1,DMSO_rep2,osi_rep1,osi_rep2 
+INFO  @ Sat, 03 Sep 2022 12:43:09: Loaded samples:D0;DMSO_rep1;DMSO_rep2;osi_rep1;osi_rep2 
+INFO  @ Sat, 03 Sep 2022 12:43:09: Sample index: 0;1;2;3;4 
+INFO  @ Sat, 03 Sep 2022 12:43:09: Loaded 19113 genes. 
+INFO  @ Sat, 03 Sep 2022 12:43:09: 1000 out of 1000 control sgRNAs are found in count table. 
+INFO  @ Sat, 03 Sep 2022 12:43:09: Loaded 1000 control sgRNAs from NonTargetingControls.txt 
+INFO  @ Sat, 03 Sep 2022 12:43:10: control sgRNAs for normalization:1000 
+DEBUG @ Sat, 03 Sep 2022 12:43:10: Initial (total) size factor: 0.8847239339450423 1.235945292130177 1.097165827016689 0.9270956844009404 0.9341167056701669 
+DEBUG @ Sat, 03 Sep 2022 12:43:10: Median factor: 0.8306271318644137 1.1870007138897227 1.050017349452695 0.9728398185160576 0.9559480067265157 
+INFO  @ Sat, 03 Sep 2022 12:43:10: Final size factor: 0.8306271318644137 1.1870007138897227 1.050017349452695 0.9728398185160576 0.9559480067265157 
+INFO  @ Sat, 03 Sep 2022 12:43:10: size factor: 1.20390962639929,0.8424594764758534,0.9523652161759367,1.0279184516988333,1.0460819970997512 
+INFO  @ Sat, 03 Sep 2022 12:43:11: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:43:11: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:43:11: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:43:11: Modeling the mean and variance ... 
+INFO  @ Sat, 03 Sep 2022 12:43:11: Run the algorithm for the second time ... 
+INFO  @ Sat, 03 Sep 2022 12:43:12: Skipping gene NonTargeting from MLE calculation since there are too many sgRNAs. To change, revise the --max-sgrnapergene-permutation option. 
+INFO  @ Sat, 03 Sep 2022 12:43:13: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:44:07: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:44:07: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:44:10: Using 1 genes and 1000 sgRNAs as negative controls for permutation... 
+INFO  @ Sat, 03 Sep 2022 12:44:10: Permuting groups of gene with 1 sgRNAs per gene. Group progress: 1/5 
+INFO  @ Sat, 03 Sep 2022 12:44:10: Start permuting 2 rounds ... 
+INFO  @ Sat, 03 Sep 2022 12:44:10: Collecting 1000 sgRNAs from 1 genes. 
+INFO  @ Sat, 03 Sep 2022 12:44:11: Permuting round 0 ... 
+INFO  @ Sat, 03 Sep 2022 12:44:15: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:44:52: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:44:52: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:44:54: Permuting round 1 ... 
+INFO  @ Sat, 03 Sep 2022 12:44:57: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:45:29: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:45:29: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:45:31: Assigning p values... 
+INFO  @ Sat, 03 Sep 2022 12:45:31: Permuting groups of gene with 2 sgRNAs per gene. Group progress: 2/5 
+INFO  @ Sat, 03 Sep 2022 12:45:31: Start permuting 2 rounds ... 
+INFO  @ Sat, 03 Sep 2022 12:45:31: Collecting 1000 sgRNAs from 1 genes. 
+INFO  @ Sat, 03 Sep 2022 12:45:32: Permuting round 0 ... 
+INFO  @ Sat, 03 Sep 2022 12:45:36: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:46:19: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:46:19: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:46:21: Permuting round 1 ... 
+INFO  @ Sat, 03 Sep 2022 12:46:24: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:47:15: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:47:15: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:47:18: Assigning p values... 
+INFO  @ Sat, 03 Sep 2022 12:47:18: Permuting groups of gene with 4 sgRNAs per gene. Group progress: 3/5 
+INFO  @ Sat, 03 Sep 2022 12:47:18: Start permuting 2 rounds ... 
+INFO  @ Sat, 03 Sep 2022 12:47:18: Collecting 1000 sgRNAs from 1 genes. 
+INFO  @ Sat, 03 Sep 2022 12:47:19: Permuting round 0 ... 
+INFO  @ Sat, 03 Sep 2022 12:47:22: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:48:23: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:48:23: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:48:25: Permuting round 1 ... 
+INFO  @ Sat, 03 Sep 2022 12:48:29: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:49:19: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:49:19: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:49:22: Assigning p values... 
+INFO  @ Sat, 03 Sep 2022 12:50:04: Permuting groups of gene with 8 sgRNAs per gene. Group progress: 4/5 
+INFO  @ Sat, 03 Sep 2022 12:50:04: Start permuting 2 rounds ... 
+INFO  @ Sat, 03 Sep 2022 12:50:04: Collecting 1000 sgRNAs from 1 genes. 
+INFO  @ Sat, 03 Sep 2022 12:50:05: Permuting round 0 ... 
+INFO  @ Sat, 03 Sep 2022 12:50:10: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:51:29: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:51:29: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:51:33: Permuting round 1 ... 
+INFO  @ Sat, 03 Sep 2022 12:51:38: Thread 0 started. 
+INFO  @ Sat, 03 Sep 2022 12:52:59: Thread 0 completed. 
+INFO  @ Sat, 03 Sep 2022 12:52:59: All threads completed. 
+INFO  @ Sat, 03 Sep 2022 12:53:02: Assigning p values... 
+INFO  @ Sat, 03 Sep 2022 12:53:02: Groups of gene with 1000 sgRNAs per gene: assigning p values based on previous group results. Group progress: 5/5 
+INFO  @ Sat, 03 Sep 2022 12:53:03: Writing gene results to MLEResult.gene_summary.txt 
+INFO  @ Sat, 03 Sep 2022 12:53:03: Writing sgRNA results to MLEResult.sgrna_summary.txt 

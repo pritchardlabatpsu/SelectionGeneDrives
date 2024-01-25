@@ -1,0 +1,1063 @@
+% This is a template file for Sweave used in MAGeCK
+% Author: Wei Li, Shirley Liu lab
+% Do not modify lines beginning with "#__".
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amscd}
+\usepackage[tableposition=top]{caption}
+\usepackage{ifthen}
+\usepackage{fullpage}
+\usepackage[utf8]{inputenc}
+
+\begin{document}
+\setkeys{Gin}{width=0.9\textwidth}
+
+\title{MAGeCK Comparison Report}
+\author{Wei Li}
+
+\maketitle
+
+
+\tableofcontents
+
+\section{Summary}
+
+%Function definition
+<<label=funcdef,include=FALSE,echo=FALSE>>=
+genreporttable<-function(comparisons,ngenes,direction,fdr1,fdr5,fdr25){
+  xtb=data.frame(Comparison=comparisons,Genes=ngenes,Selection=direction,FDR1=fdr1,FDR5=fdr5,FDR25=fdr25);
+  colnames(xtb)=c("Comparison","Genes","Selection","FDR1%","FDR5%","FDR25%");
+  return (xtb);
+}
+@
+
+The statistics of comparisons is as indicated in the following table. 
+
+<<label=tab1,echo=FALSE,results=tex>>=
+library(xtable)
+comparisons=c("osi_rep1,osi_rep2_vs_DMSO_rep1,DMSO_rep2 neg.","osi_rep1,osi_rep2_vs_DMSO_rep1,DMSO_rep2 pos.");
+ngenes=c(19113,19113);
+direction=c("negative","positive");
+fdr1=c(0,11);
+fdr5=c(0,18);
+fdr25=c(8,32);
+
+cptable=genreporttable(comparisons,ngenes,direction,fdr1,fdr5,fdr25);
+print(xtable(cptable, caption = "Summary of comparisons", label = "tab:one",
+    digits = c(0, 0, 0, 0, 0, 0, 0),
+    table.placement = "tbp",
+    caption.placement = "top"))
+@
+
+The meanings of the columns are as follows.
+
+\begin{itemize}
+\item \textbf{Comparison}: The label for comparisons;
+\item \textbf{Genes}: The number of genes in the library;
+\item \textbf{Selection}: The direction of selection, either positive selection or negative selection;
+\item \textbf{FDR1\%}: The number of genes with FDR $<$ 1\%;
+\item \textbf{FDR5\%}: The number of genes with FDR $<$ 5\%;
+\item \textbf{FDR25\%}: The number of genes with FDR $<$ 25\%;
+\end{itemize}
+
+The following figures show:
+
+\begin{itemize}
+\item Individual sgRNA read counts of selected genes in selected samples; 
+\item The distribution of RRA scores and p values of all genes; and
+\item The RRA scores and p values of selected genes.
+\end{itemize}
+
+
+\newpage\section{Comparison results of osi rep1,osi rep2 vs DMSO rep1,DMSO rep2 neg.}
+
+The following figure shows the distribution of RRA score in the comparison osi rep1,osi rep2 vs DMSO rep1,DMSO rep2 neg., and the RRA scores of 10 genes.
+
+<<echo=FALSE>>=
+gstable=read.table('RRAResult.gene_summary.txt',header=T)
+@
+%
+
+
+<<fig=TRUE,echo=FALSE,width=4.5,height=4.5>>=# 
+#
+# parameters
+# Do not modify the variables beginning with "__"
+
+# gstablename='__GENE_SUMMARY_FILE__'
+startindex=3
+# outputfile='__OUTPUT_FILE__'
+targetgenelist=c("NUDCD2","RCE1","TNNT1","CBFB","CDC42EP2","PCGF5","LASP1","CORIN","SLC35B2","TRIO")
+# samplelabel=sub('.\w+.\w+$','',colnames(gstable)[startindex]);
+samplelabel='osi_rep1,osi_rep2_vs_DMSO_rep1,DMSO_rep2 neg.'
+
+
+# You need to write some codes in front of this code:
+# gstable=read.table(gstablename,header=T)
+# pdf(file=outputfile,width=6,height=6)
+
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+######
+# function definition
+
+plotrankedvalues<-function(val, tglist, ...){
+  
+  plot(val,log='y',ylim=c(max(val),min(val)),type='l',lwd=2, ...)
+  if(length(tglist)>0){
+    for(i in 1:length(tglist)){
+      targetgene=tglist[i];
+      tx=which(names(val)==targetgene);ty=val[targetgene];
+      points(tx,ty,col=colors[(i %% length(colors)) ],cex=2,pch=20)
+      # text(tx+50,ty,targetgene,col=colors[i])
+    }
+    legend('topright',tglist,pch=20,pt.cex = 2,cex=1,col=colors)
+  }
+}
+
+
+
+plotrandvalues<-function(val,targetgenelist, ...){
+  # choose the one with the best distance distribution
+  
+  mindiffvalue=0;
+  randval=val;
+  for(i in 1:20){
+    randval0=sample(val)
+    vindex=sort(which(names(randval0) %in% targetgenelist))
+    if(max(vindex)>0.9*length(val)){
+      # print('pass...')
+      next;
+    }
+    mindiffind=min(diff(vindex));
+    if (mindiffind > mindiffvalue){
+      mindiffvalue=mindiffind;
+      randval=randval0;
+      # print(paste('Diff: ',mindiffvalue))
+    }
+  }
+  plot(randval,log='y',ylim=c(max(randval),min(randval)),pch=20,col='grey', ...)
+  
+  if(length(targetgenelist)>0){
+    for(i in 1:length(targetgenelist)){
+      targetgene=targetgenelist[i];
+      tx=which(names(randval)==targetgene);ty=randval[targetgene];
+      points(tx,ty,col=colors[(i %% length(colors)) ],cex=2,pch=20)
+      text(tx+50,ty,targetgene,col=colors[i])
+    }
+  }
+  
+}
+
+
+
+
+# set.seed(1235)
+
+
+
+pvec=gstable[,startindex]
+names(pvec)=gstable[,'id']
+pvec=sort(pvec);
+
+plotrankedvalues(pvec,targetgenelist,xlab='Genes',ylab='RRA score',main=paste('Distribution of RRA scores in \n',samplelabel))
+
+# plotrandvalues(pvec,targetgenelist,xlab='Genes',ylab='RRA score',main=paste('Distribution of RRA scores in \n',samplelabel))
+
+
+pvec=gstable[,startindex+1]
+names(pvec)=gstable[,'id']
+pvec=sort(pvec);
+
+plotrankedvalues(pvec,targetgenelist,xlab='Genes',ylab='p value',main=paste('Distribution of p values in \n',samplelabel))
+
+# plotrandvalues(pvec,targetgenelist,xlab='Genes',ylab='p value',main=paste('Distribution of p values in \n',samplelabel))
+
+
+
+# you need to write after this code:
+# dev.off()
+
+
+
+
+@
+%%
+\clearpage
+\newpage
+The following figures show the distribution of sgRNA read counts (normalized) of selected genes in selected samples.
+%
+
+
+<<fig=TRUE,echo=FALSE,width=4.5,height=4.5>>=
+par(mfrow=c(2,2));
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(277.46405018076666,284.88541451645233,50.8705849927303,5.781763054028543),c(829.3652699948735,1480.5138885651882,101.7411699854606,425.92321164676935),c(693.1556453606789,582.2345659179995,281.9078251680471,158.99848398578493),c(623.5373927698685,301.8004860033667,171.68822435046476,53.963121837599736))
+targetgene="NUDCD2"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(747.6394952143568,1145.7735265083568,297.8048829782753,80.9446827563996),c(423.76327663971637,481.6344039168772,415.4431107739641,187.90729925592765),c(502.46217087280655,510.12294536852244,499.16761524116606,923.1548342932241),c(1236.9851837149818,1534.820170707387,363.5127219272186,408.5779224846837))
+targetgene="RCE1"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(151.3440273713273,544.843355262715,20.136273226289077,14.454407635071359),c(277.46405018076666,413.9741179692198,39.21274259856294,79.98105558072818),c(1211.7611791530937,1381.6942604047938,224.6784170512255,211.03435147204183),c(826.338389447447,496.7689415630638,361.3931142191882,181.16190902622768))
+targetgene="TNNT1"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(126.1200228094394,366.7899711899324,41.33235030659337,109.85349802654233),c(1474.0908265967278,1444.0129448302678,380.469583591462,306.43344186351277),c(373.3152675159406,543.9530883423512,30.734311766441223,10.599898932385663),c(643.7165964193787,342.7527643401067,16.956861664243434,133.9441774183279))
+targetgene="CBFB"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+par(mfrow=c(1,1));
+@
+%
+
+
+<<fig=TRUE,echo=FALSE,width=4.5,height=4.5>>=
+par(mfrow=c(2,2));
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(1460.974344224546,1011.3432215334058,588.1911389784441,812.3377090910103),c(927.2344076949985,694.4081978838526,485.3901651389683,260.17933743128447),c(302.6880547426546,175.38258331169095,37.09313489053251,18.308916337757054),c(464.121683938737,145.11350801931792,47.69117343068466,41.43596855387123))
+targetgene="CDC42EP2"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(987.7720186435293,1049.624699109054,237.39606329940807,302.5789331608271),c(1346.9618436048129,969.5006762763019,185.46567445266254,256.32482872859873),c(496.40840977795347,610.7231073696447,1219.834235971512,662.0118696862681),c(987.7720186435293,923.2067964173783,1558.9714692563807,885.5733744420386))
+targetgene="PCGF5"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(1670.8380621794531,1462.70855015791,613.6264314748092,652.3755979295539),c(1006.9422621105642,1147.5540603490845,96.44215071538453,72.27203817535678),c(435.8707988294226,345.42356510119845,84.78430832121717,136.83505894534218),c(830.374230177349,634.7603142194704,204.54214382493643,520.3586748625689))
+targetgene="LASP1"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(732.505092477224,1119.0655188974392,910.3715105990693,1935.9269959238904),c(1530.5925968153565,1819.7055852238393,1125.5116929641579,650.448343578211),c(9470.100272715186,13737.70884813555,1901.288114103295,1900.2727904240478),c(954.4763326218374,340.081963579015,821.3479868617914,1093.716844387066))
+targetgene="CORIN"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+par(mfrow=c(1,1));
+@
+%
+
+
+<<fig=TRUE,echo=FALSE,width=4.5,height=4.5>>=
+par(mfrow=c(2,2));
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(404.5930331726816,481.6344039168772,93.26273915333888,10.599898932385663),c(31.27776565674097,33.830142973828714,1.0598038540152146,0.0),c(289.5715723704729,395.2785126415776,5.299019270076073,57.817630540285435),c(648.7613973317563,380.1439749953911,73.12646592704981,110.81712520221375))
+targetgene="SLC35B2"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(380.37798879326925,100.60016200112223,338.07742943085344,673.5753957943252),c(575.1073040110437,1042.5025637461426,19.076469372273863,306.43344186351277),c(1231.940382802604,750.4950138667791,334.8980178688078,233.19777651248458),c(117.03938116715976,193.18792171896922,168.5088127884191,9.636271756714239))
+targetgene="TRIO"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+par(mfrow=c(1,1));
+@
+
+\newpage\section{Comparison results of osi rep1,osi rep2 vs DMSO rep1,DMSO rep2 pos.}
+
+The following figure shows the distribution of RRA score in the comparison osi rep1,osi rep2 vs DMSO rep1,DMSO rep2 pos., and the RRA scores of 10 genes.
+
+<<echo=FALSE>>=
+gstable=read.table('RRAResult.gene_summary.txt',header=T)
+@
+%
+
+
+<<fig=TRUE,echo=FALSE,width=4.5,height=4.5>>=# 
+#
+# parameters
+# Do not modify the variables beginning with "__"
+
+# gstablename='__GENE_SUMMARY_FILE__'
+startindex=9
+# outputfile='__OUTPUT_FILE__'
+targetgenelist=c("NonTargeting","PTEN","KCTD5","KEAP1","PAWR","FURIN","ROCK2","NF1","CARM1","DAPK3")
+# samplelabel=sub('.\w+.\w+$','',colnames(gstable)[startindex]);
+samplelabel='osi_rep1,osi_rep2_vs_DMSO_rep1,DMSO_rep2 pos.'
+
+
+# You need to write some codes in front of this code:
+# gstable=read.table(gstablename,header=T)
+# pdf(file=outputfile,width=6,height=6)
+
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+######
+# function definition
+
+plotrankedvalues<-function(val, tglist, ...){
+  
+  plot(val,log='y',ylim=c(max(val),min(val)),type='l',lwd=2, ...)
+  if(length(tglist)>0){
+    for(i in 1:length(tglist)){
+      targetgene=tglist[i];
+      tx=which(names(val)==targetgene);ty=val[targetgene];
+      points(tx,ty,col=colors[(i %% length(colors)) ],cex=2,pch=20)
+      # text(tx+50,ty,targetgene,col=colors[i])
+    }
+    legend('topright',tglist,pch=20,pt.cex = 2,cex=1,col=colors)
+  }
+}
+
+
+
+plotrandvalues<-function(val,targetgenelist, ...){
+  # choose the one with the best distance distribution
+  
+  mindiffvalue=0;
+  randval=val;
+  for(i in 1:20){
+    randval0=sample(val)
+    vindex=sort(which(names(randval0) %in% targetgenelist))
+    if(max(vindex)>0.9*length(val)){
+      # print('pass...')
+      next;
+    }
+    mindiffind=min(diff(vindex));
+    if (mindiffind > mindiffvalue){
+      mindiffvalue=mindiffind;
+      randval=randval0;
+      # print(paste('Diff: ',mindiffvalue))
+    }
+  }
+  plot(randval,log='y',ylim=c(max(randval),min(randval)),pch=20,col='grey', ...)
+  
+  if(length(targetgenelist)>0){
+    for(i in 1:length(targetgenelist)){
+      targetgene=targetgenelist[i];
+      tx=which(names(randval)==targetgene);ty=randval[targetgene];
+      points(tx,ty,col=colors[(i %% length(colors)) ],cex=2,pch=20)
+      text(tx+50,ty,targetgene,col=colors[i])
+    }
+  }
+  
+}
+
+
+
+
+# set.seed(1235)
+
+
+
+pvec=gstable[,startindex]
+names(pvec)=gstable[,'id']
+pvec=sort(pvec);
+
+plotrankedvalues(pvec,targetgenelist,xlab='Genes',ylab='RRA score',main=paste('Distribution of RRA scores in \n',samplelabel))
+
+# plotrandvalues(pvec,targetgenelist,xlab='Genes',ylab='RRA score',main=paste('Distribution of RRA scores in \n',samplelabel))
+
+
+pvec=gstable[,startindex+1]
+names(pvec)=gstable[,'id']
+pvec=sort(pvec);
+
+plotrankedvalues(pvec,targetgenelist,xlab='Genes',ylab='p value',main=paste('Distribution of p values in \n',samplelabel))
+
+# plotrandvalues(pvec,targetgenelist,xlab='Genes',ylab='p value',main=paste('Distribution of p values in \n',samplelabel))
+
+
+
+# you need to write after this code:
+# dev.off()
+
+
+
+
+@
+%%
+\clearpage
+\newpage
+The following figures show the distribution of sgRNA read counts (normalized) of selected genes in selected samples.
+%
+
+
+<<fig=TRUE,echo=FALSE,width=4.5,height=4.5>>=
+par(mfrow=c(2,2));
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(1621.399013238153,1447.5740125117234,1658.5930315338107,786.3197753478819),c(1295.5048742985616,753.1658146278709,1350.1901100153834,1509.0401571014497),c(886.8760003959778,436.2307909783176,597.7293736645811,1033.9719594954379),c(320.84933802721383,404.18118184521677,6526.272133025692,1720.0745085734916),c(1442.8130609399868,1421.75627182117,2590.1606192131844,1631.4208084117206),c(1687.9903852815369,1045.1733645072345,1164.7244355627208,1337.5145198319362),c(1579.0226855741814,1417.3049372193504,3235.58116630845,2498.6852665160022),c(1490.234189516336,1139.5416580658093,1638.4567583075218,793.0651655775819),c(1341.9170426924352,1312.2534406164086,2313.5518133152136,3299.459449498955),c(2054.242931520149,2678.813163375016,1669.191070073963,1944.5996405049334),c(1099.7665988983115,1653.2256711157875,601.9685890806419,1192.0068163055514),c(806.1591857979366,865.339446593724,3106.285096118594,1775.9648847624342),c(465.1306441212125,327.6182266939202,157.910774248267,156.10760245877066),c(211.88163831985818,157.57724490441268,259.6519442337276,93.47183604012811),c(1076.5605147013748,1207.2019440134668,1746.5567514170737,1911.836316532105),c(357.1719045963324,336.5208958975593,65.7078389489433,418.21419424139793),c(361.20774532623443,292.89781679972754,299.9244906863057,580.1035597541971),c(1190.573015321108,1171.5912671989101,1670.2508739279783,2107.452633193404),c(1252.1195864521144,950.8050709486597,996.2156227743017,1360.6415720480504),c(906.0462438630127,995.3184169668554,437.69899170828364,784.392520996539),c(2683.8340853848704,2587.115670577533,3859.8056363234114,2635.5203254613443),c(1967.4723558272547,2441.111895637851,1396.8214795920528,2491.939876286302),c(1621.399013238153,1458.2572155560904,1915.0655642054928,1606.3665018442637),c(1141.1339663798078,1192.0674063672802,1706.2842049644955,1739.34705208692),c(1228.9135022551775,1646.103535752876,2875.247855943277,1313.4238404401508),c(362.21670550871,551.0752237052625,142.01371643803876,250.54306567457022),c(1573.9778846618037,2006.661638500261,4948.224194397037,3851.617821158681),c(1721.286071303229,1899.8296080565915,2661.1674774322037,2729.955788677144),c(1896.8451430539685,1726.2275585856282,2582.7419922350778,2003.3808982208902),c(748.6484553968323,1220.5559478189255,1078.8803233874885,637.9211902944826),c(1070.5067536065217,1094.1380451272498,638.0019201171592,1262.3516001295652),c(1980.5888381994364,1411.073068776803,3660.5625117685513,2833.063896473986),c(989.7899390084805,1186.7258048450967,1310.9773674168205,1622.7481638306779),c(1410.5263351007702,1642.5424680714204,2208.631231767707,2384.013632611103),c(1003.9153815631377,1023.8069584185006,1062.9832655772602,446.1593823358692),c(1179.4744533138773,845.7535743457179,760.939167182924,1011.8085344549951),c(1662.766380719649,1238.3612862262037,1112.7940467159754,1823.182616370334),c(1151.223568204563,2152.6654134399428,1050.2656193290777,1301.8603143320936),c(1899.872023601395,2164.2388834046737,2096.2920232420943,1930.145232869862),c(2904.7963653470083,2428.648158752756,2641.031204205915,3459.4215606604116),c(1812.0924877260254,1656.786738797243,1898.1087025412494,2066.980291815204),c(1485.1893886039584,1824.1569198256589,4790.31342014877,1589.9848398578495),c(1464.0012247719726,1418.1952041397142,949.5842531976323,2146.9613473959325),c(1297.5227946635125,1383.4747942455217,2001.9694802347403,783.4288938208676),c(1571.9599642968526,1469.8306855208211,453.59604951851185,740.0656709156535),c(1054.3633906869134,1030.038826861048,1229.372470657649,1055.171757360209),c(877.7953587536982,511.9034792092503,1048.1460116210471,891.3551374960671),c(1773.7520007919557,1699.519550974711,3418.927233053082,2320.4142390167885),c(1672.8559825444042,1220.5559478189255,2149.282215942855,1628.5299268847064),c(980.7092973662008,790.5570252831552,1448.7518684387983,1999.5263895182045),c(1138.1070858323812,1234.800218544748,1379.8646179278094,753.5564513750535),c(162.44258937855795,178.9436509931466,213.02057465705815,240.90679391785596),c(1158.2862894818916,2068.090056005371,2008.3283033588316,2368.59559780036),c(1392.365051816211,915.194394134103,1170.023454832797,2198.0335877065177),c(802.1233450680346,1079.0035074810633,1237.8509014897706,917.3730712391955),c(1012.9960232054173,1609.6025920179557,1357.6087369934899,1724.8926444518488),c(1002.9064213806621,893.8279880453692,611.5068237667788,420.1414485927408),c(1255.146466999541,1386.1455950066133,1752.915574541165,979.0452104821667),c(1109.8562007230666,882.2545180806383,2084.634180847927,625.3940370107541),c(1641.5782168876633,1430.658941024809,2042.2420266873185,2644.192970042387),c(685.0839639008749,640.9921826620177,610.4470199127636,634.0666815917969),c(1123.981643277724,862.6686458326323,1564.2704885264568,4010.616305144466),c(813.2219070752652,897.3890557268248,651.779370219357,925.082088644567),c(978.6913770012497,645.4435172638373,250.11370954759064,1333.6600111292507),c(1054.3633906869134,1084.3451090032468,2833.915505636684,2702.974227758344),c(851.5623940093349,746.0436792649596,1080.9999310955188,1220.915631575694),c(924.2075271475719,1104.8212481716166,1872.6734100448841,1851.1278044648052),c(1129.0264441901015,1599.8096558939526,902.9528836209629,852.8100504692101),c(946.4046511620332,1054.9663006312376,1407.419518132205,1219.9520044000226),c(1990.6784400241916,1341.6322489884176,1499.6224534315286,2447.6130262054166),c(157.39778846618037,174.49231639132705,103.86077769349103,328.5968669039555),c(687.1018842658259,388.1563772786663,101.7411699854606,533.8494553219688),c(1528.5746764504056,1328.278245182959,2627.253754103717,2875.463492203529),c(523.6503347047924,393.49797880084975,178.04704747455605,94.43546321579954),c(944.3867307970822,880.4739842399105,2869.948836673201,1886.7820099646478),c(1036.2021074023542,1368.3402565993351,731.2646592704981,1027.226569265738),c(1631.4886150629081,1147.5540603490845,1985.012618570497,1416.531948236993),c(659.859959338987,991.7573492853996,1596.064604146913,1113.953015076166),c(802.1233450680346,612.5036412103725,298.86468683229054,466.39555302496916),c(527.6861754346944,629.4187126972869,209.8411630950125,694.7751936590967),c(920.1716864176699,945.4634694264762,1497.5028457234982,1045.5354856034949),c(661.877879703938,653.4559195471126,1912.9459564974622,2091.0709712069897),c(1539.6732384576362,1323.8269105811394,2597.579246191291,2041.9259852477471),c(1230.9314226201286,1569.5405806015794,1837.699882862382,1866.5458392755481),c(833.4011107247755,732.6896754595008,1682.9685201761608,1777.892139113777),c(1383.2844101739313,998.879484648311,1461.469514686981,1564.9305332903923),c(1484.180428421483,1018.4653568963171,2802.1213900162275,711.1568556455109),c(1794.9401646239417,1535.710437627751,1555.792057694335,2883.1725096089003),c(2165.2285515924555,1894.488006534408,3802.57622820659,5738.399831123329),c(1904.9168245137728,2074.3219244479187,6484.939782719098,3850.65419398301),c(1242.0299846273592,857.3270443104487,1642.6959737235827,1103.3531161437804),c(1162.3221302117936,1482.294422405916,2123.84692344649,2064.08941028819),c(1494.270030246238,1541.0520391499342,647.5401548032961,1636.2389442900778),c(825.3294292649714,894.7182549657331,2191.674370103464,1860.7640762215194),c(1122.9726830952484,959.7077401522988,1839.8194905704127,1474.3495787772786),c(338.0016611292976,608.052306608553,356.0940949491121,986.754227887538),c(1919.04226706843,1471.611219361549,3112.643919242685,2411.958820705574),c(1643.5961372526142,2125.9574058290254,5373.205539857138,4902.935069816204),c(1602.228769771118,1318.4853090589559,1489.0244148913764,1787.5284108704914),c(855.5982347392369,813.7039652126169,680.3940742777678,637.9211902944826),c(1249.0927059046878,1095.0283120476136,1730.6596936068454,1520.603683209507),c(1022.076664847697,1212.5435455356503,2820.138055534486,1909.909062180762),c(1317.7019983130228,1537.4909714684786,1761.3940053732867,1769.2194945327342),c(2361.9757871751813,1745.8134308336344,3178.3517581916285,1714.292745519463),c(2014.893484403604,1939.8916194729675,2763.9684512716794,1398.223031899236),c(1107.8382803581158,1367.4499896789712,2645.2704196219756,889.4278831447242),c(730.487172112273,713.9940701318586,502.34702680321175,683.2116675510396),c(1539.6732384576362,1349.644651271693,1259.046978570075,688.993430605068),c(1044.2737888621582,1356.7667866346042,1199.6979627452229,1748.019696667963),c(1109.8562007230666,859.1075781511765,1658.5930315338107,1527.349073439207),c(1208.7342986056672,1103.930981251253,509.76565378131824,1104.3167433194517),c(1071.5157137889971,666.8099233525712,351.85487953305125,1070.589792170952),c(973.6465760888722,874.2421157973631,700.5303475040569,896.1732733744242),c(267.37444835601156,781.6543560795161,653.8989779273874,1101.4258617924374),c(1431.714498932756,1709.312487098714,1230.4322745116642,1612.1482648982922),c(2163.2106312275046,1345.1933166698734,2508.555722454013,2235.6150475577033),c(740.5767739370282,977.513078559577,645.4205470952656,603.2306119703113),c(2426.549238853614,2146.4335449973955,4001.8193527614503,2594.084356907473),c(1691.0172658289634,1261.5082261556654,4110.979149725017,1607.330129019935),c(1734.4025536754107,1450.2448132728152,4045.271310776074,2602.757001488516),c(1078.5784350663257,1035.3804283832314,527.7823192995769,1606.3665018442637),c(2272.1783309348602,1648.774336513968,2583.8017960890934,1975.4357101264188),c(1637.5423761577613,1229.4586170225646,820.2881830077761,1216.0974956973369),c(1252.1195864521144,1417.3049372193504,2088.873396263988,1127.4437955355659),c(1383.2844101739313,1418.1952041397142,834.0656331099739,951.1000223876954),c(635.6449149595746,653.4559195471126,2773.5066859578164,473.14094325466914),c(1188.5550949561568,1702.1903517358028,1855.7165483806407,1222.8428859270368),c(1096.7397183508851,1139.5416580658093,1957.4577183661013,1832.8188881270482),c(903.0193633155861,937.4510671432009,1354.4293254314443,858.5918135232387),c(583.1789854708478,1212.5435455356503,1349.1303061613683,1521.5673103851782),c(1005.9333019280887,912.5235933730114,1942.6204644098884,1918.581706761805),c(1704.1337482011452,1458.2572155560904,4070.706603272439,3664.6741490784248),c(1455.9295433121686,1688.836347930344,600.9087852266267,2350.2866814626027),c(1594.157088311314,2068.980322925735,2347.4655366437005,1670.929522614249),c(1629.470694697957,1412.8536026175307,1469.9479455191026,1568.785041993078),c(2165.2285515924555,1153.785928791632,2783.0449206439534,4296.813576318879),c(1429.696578567805,1012.2334884537697,1102.1960081758232,1401.1139134262503),c(2071.3952546222326,1892.70747269368,1742.3175360010127,3571.202313038297),c(1021.0677046652214,812.8136982922531,1194.3989434751468,1028.1901964414092),c(1063.444032329193,1511.6732307779253,1276.0038402343184,715.0113643481965),c(726.451331382371,858.2173112308126,1511.280295825696,1094.6804715627375),c(1443.8220211224623,1890.0366719325884,943.225430073541,1919.5453339374762),c(1574.9868448442792,1734.2399608689036,2610.2968924394736,1968.6903198967188),c(1334.8543214151066,1635.4203327085092,774.7166172851219,1185.2614260758514),c(1137.0981256499056,1419.975737980442,2499.017487767876,1721.038135749163),c(1120.9547627302975,881.3642511602744,1571.6891155045632,1241.151802264794),c(1723.30399166818,1825.9374536663865,1588.6459771688067,1637.202571465749),c(541.8116179893517,337.41116281792324,611.5068237667788,194.65268948562763),c(955.485292804313,1162.688597995271,1153.0665931685535,863.4099494015958),c(762.7738979514895,1079.8937744014272,2117.4881003223986,1776.9285119381057),c(1537.655318092685,1600.6999228143166,2174.71750843922,1808.7282087352626),c(2238.8826449131684,1816.1445175423837,1190.159728059086,1581.3121952768065),c(1818.1462488208783,1675.4823441248852,2779.865509081908,2387.8681413137883),c(1946.2841919952689,1972.8314955264323,2146.1028043808096,3466.166950890112),c(1091.6949174385074,741.59234466314,164.26959737235825,351.7239191200697),c(1048.3096295920602,1089.68671052543,2861.4704058410794,1722.0017629248343),c(1076.5605147013748,1358.547320475332,1418.0175566723572,1781.7466478164627),c(625.5553131348195,345.42356510119845,524.6029077375313,235.12503086382742),c(1177.4565329489262,1112.833650454892,1624.6793082053239,1591.9120942091922),c(759.747017404063,901.8403903286444,1852.5371368185952,2341.61403688156),c(1217.8149402479469,1751.1550323558179,1728.540085898815,2162.379382206675),c(1819.155209003354,1780.533840727827,4456.475206133978,3835.236159172267),c(1812.0924877260254,1931.8792171896923,1915.0655642054928,1382.8049970884933),c(1762.653438784725,1388.8163957677052,1974.4145800303447,3753.327849240196),c(1248.0837457222124,1483.18468932628,2811.6596247023645,1757.6559684246772),c(1894.8272226890176,1399.499598812072,3311.8870437975456,3296.568567971941),c(485.3098477707228,768.3003522740573,526.7225154455616,847.991914590853),c(1682.9455843691594,1191.1771394469163,2584.8615999431086,1845.3460414107767),c(2120.834303563533,1741.3620962318148,2927.1782447900227,1694.0565748303632),c(1136.0891654674301,1007.7821538519502,902.9528836209629,1067.6989106439376),c(1524.5388357205036,1531.2591030259314,1776.2312593294996,3395.822167066098),c(769.8366192288181,962.3785409133906,969.7205264239213,1206.4612239406226),c(1084.6321961611789,1174.262067960002,446.17742254040536,811.3740819153389),c(720.3975702875179,863.5589127529961,896.5940604968715,1397.2594047235646),c(314.79557693236075,356.9970350659293,209.8411630950125,215.85248735039895),c(1070.5067536065217,519.9158814925255,2954.733144994418,1069.6261649952805),c(1284.4063122913308,1065.6495036756046,5680.54865752155,1888.7092643159908),c(621.5194724049173,421.0962533321311,646.4803509492809,282.3427624717272),c(1146.1787672921853,1421.75627182117,698.4107397960264,1871.3639751539051),c(613.4477909451133,800.3499614071583,2542.4694457825,822.937608023396),c(780.9351812360488,1276.642763801852,1102.1960081758232,1621.7845366550064),c(2886.635082062449,3347.403620568315,3001.364514571088,2737.664806082515),c(1842.361293200291,2111.713135103203,3590.615457403547,2642.265715691044),c(1411.535295283246,1258.8374253945738,884.9362181027042,949.1727680363525),c(1601.2198095886426,1989.7465670133467,4989.556544703631,1946.5268948562762),c(326.9030991220669,291.11728295899974,739.7430901026198,438.45036493049787),c(1091.6949174385074,1560.6379113979403,1706.2842049644955,1321.132857845522),c(1734.4025536754107,1843.742792073665,2809.540016994334,2686.59256577193),c(747.6394952143568,428.2183886950424,883.876414248689,931.8274788742668),c(1073.5336341539482,1590.0167197699495,1519.7587266578178,1940.7451318022477),c(1432.7234591152317,1667.46994184161,4418.32226738943,1727.783525978863),c(1547.7449199174403,1436.8908094673563,2588.041011505154,1992.7809992885045),c(2665.6728021003114,2135.7503419530285,2299.7743632130155,3709.0009991593106),c(1575.9958050267549,1841.0719913125731,1614.081269665172,3009.4076696218567),c(1519.494034808126,839.5217059031704,331.7186063067622,1091.7895900357232),c(956.4942529867884,1559.7476444775766,1102.1960081758232,837.3920156584674),c(1128.017484007626,1186.7258048450967,1450.8714761468289,1165.0252553867515),c(72.6451331382371,139.7719064971344,2.119607708030429,93.47183604012811),c(809.1860663453632,1028.25829302032,1260.1067824240902,2083.3619538016183),c(2608.162071699207,2717.984907871028,3074.4909804981376,2359.922953219317),c(1353.0156046996658,1719.995690143081,1455.1106915628895,1410.7501851829645),c(1154.2504487519893,1301.5702375720416,1517.6391189497872,2244.287692138746),c(1657.7215798072716,1350.534918192057,3201.667442979963,1511.931038628464),c(843.4907125495307,951.6953378690235,911.4313144530845,618.6486467810541),c(765.8007784989161,516.3548138110698,1014.2322882925604,1611.1846377226207),c(1343.9349630573863,920.5359956562866,2254.2027974903613,1971.5812014237333),c(502.46217087280655,296.4588844811832,618.9254507448853,1773.07400323542),c(1048.3096295920602,941.0121348246566,1993.4910494026187,883.6461200906957),c(1330.8184806852046,895.608521886097,474.79212659881614,470.25006172765484),c(1528.5746764504056,2358.317072044007,1951.09889524201,1238.2609207377798),c(1502.3417117060421,1977.282830128252,2827.5566825125925,3806.327343902124),c(841.4727921845797,939.2316009839287,472.6725188907857,526.1404379165974),c(1544.718039370014,1665.6894080008822,3335.2027285858803,2861.972711744129),c(425.78119700466743,291.11728295899974,665.5568203215548,1045.5354856034949),c(1067.479873059095,1600.6999228143166,1700.9851856944194,1113.953015076166),c(777.9083006886223,792.337559123883,539.4401616937442,1074.4443008736375),c(1994.7142807540936,1639.8716673103288,1508.1008842636504,1391.477641669536),c(2067.359413892331,2406.3914857436584,2507.495918599998,3166.478899256299),c(519.6144939748904,403.2909149248528,11.65784239416736,426.8868388224408),c(873.7595180237962,857.3270443104487,1859.9557637967016,1455.0770352638501),c(976.6734566362987,947.244003267204,484.3303612849531,941.4637506309812),c(1615.3452521432998,916.974927974831,2736.413551067284,2749.2283321905725),c(1741.4652749527393,1372.7915912011547,380.469583591462,2056.3803928828183),c(1248.0837457222124,1384.3650611658854,774.7166172851219,1035.8992138467806),c(425.78119700466743,533.2698852979842,3344.7409632720173,1163.0980010354085),c(702.2362870029586,737.1410100613205,1681.9087163221457,2384.977259786774),c(1027.1214657600744,2202.520360980322,3519.6085991845275,1550.476125655321),c(1429.696578567805,1630.0787311863257,3660.5625117685513,1577.4576865741208),c(1279.3615113789533,1529.4785691852035,2183.195939271342,1889.672891491662),c(1493.2610700637624,2079.663525970102,1523.9979420738787,2005.308152572233),c(1425.660737837903,1463.598817078274,632.7029008470831,1081.1896911033375),c(1466.0191451369237,1078.1132405606993,2311.432205607183,1702.729219411406),c(1334.8543214151066,803.02076216825,1792.1283171397279,1528.3127006148782),c(1008.9601824755152,901.8403903286444,1762.453809227302,995.4268724685809),c(1107.8382803581158,907.1819918508279,590.3107466864745,717.9022458752107),c(1557.8345217421954,1098.5893797290694,1071.461696409382,1367.3869622777504),c(1287.4331928387573,1633.6397988677813,1742.3175360010127,1613.1118920739636),c(1733.3935934929352,1322.0463767404117,607.267608350718,1243.0790566161368),c(1145.1698071097098,1070.1008382774241,1930.962622015721,1571.6759235200923),c(2126.888064658386,777.2030214776966,526.7225154455616,713.0841099968536),c(1071.5157137889971,1628.2981973455978,1971.2351684682992,2475.558214299888),c(690.1287648132524,1027.3680260999563,287.20684443812314,1059.0262660628948),c(430.825997917045,565.3194944310851,1000.4548381903626,491.44985959242615),c(980.7092973662008,693.5179309634887,914.6107260151302,641.7756989971683),c(1083.6232359787034,1176.9328687210937,1454.0508877088744,2366.668343449017),c(1052.3454703219625,851.9854427882652,1801.6665518258649,529.0313194436117),c(695.1735657256299,949.9148040282957,1414.8381451103114,309.32432339052707),c(1639.5602965227122,2020.01564230572,4906.891844090444,3470.0214595927973),c(1484.180428421483,2228.3381016708754,3369.116451914367,1732.60166185722),c(1063.444032329193,948.134270187568,798.0323020734565,926.0457158202383),c(179.5949124806417,631.1992465380147,370.9313489053251,827.7557439017531),c(1032.1662666724521,409.5227833674002,702.6499552120873,769.9381133614677),c(2245.9453661904968,1496.5386931317387,1773.051847767454,1745.1288151409485),c(124.10210244448837,125.52763577131181,10.598038540152146,77.09017405371391),c(1012.9960232054173,1208.9824778541945,1614.081269665172,1399.1866590749075),c(1456.938503494644,1721.7762239838087,2296.59495165097,2111.30714189609),c(804.1412654329856,649.004584945293,732.3244631245133,1009.8812801036522),c(1780.8147220692845,1649.6646034343319,6453.145667098642,3621.310926173211),c(1113.892041452969,1326.4977113422312,4581.532060907773,3920.0353506313522),c(1890.7913819591156,1217.8851470578338,1826.0420404682147,2077.5801907475898),c(652.7972380616584,892.9377211250053,792.7332828033805,441.3412464575121),c(1461.9833044070215,1414.6341364582586,2717.33708169501,1562.039651763378),c(718.3796499225668,795.8986268053387,1447.692064584783,955.9181582660525),c(1654.694699259845,1249.9347561909346,2691.901789198645,1616.9664007766492),c(1554.8076411947688,1507.2218961761057,2161.9998621910377,1133.2255585895944),c(1529.583636632881,1180.4939364025493,1666.0116585119174,3070.1161816891563),c(787.9979025133774,1069.2105713570602,547.918592525866,551.1947444840545),c(1227.904542072702,1042.5025637461426,1932.0224258697363,1489.7676135880213),c(679.0302028060217,433.5599902172259,808.6303406136087,409.54154966035514),c(931.2702484249005,1196.5187409690998,757.7597556208784,396.0507692009552),c(603.3581891203581,664.1391225914795,739.7430901026198,686.1025490780538),c(622.5284325873929,785.2154237609717,1471.0077493731178,625.3940370107541),c(598.3133882079806,1152.005394950904,1237.8509014897706,1133.2255585895944),c(761.764937769014,456.7069301466876,830.8862215479282,294.8699157554557),c(722.4154906524689,675.7125925562103,937.9264108034649,983.8633463605238),c(1668.8201418145022,2039.6015145537258,2520.2135648481803,2022.6534417343187),c(1041.2469083147316,1263.2887599963933,1129.7509083802188,1177.55240867048),c(1885.746581046738,2057.406852961004,4741.56244286407,2682.738057069244),c(658.8509991565114,742.4826115835039,289.3264521461536,893.2823918474099),c(1935.1856299880383,1888.2561380918605,2852.9919750089575,2444.7221446784024),c(1637.5423761577613,2393.0374819381996,3611.8115344838516,2493.867130637645),c(1967.4723558272547,1878.4632019678575,4043.151703068044,3441.1126443226544),c(1848.4150542951438,1349.644651271693,2173.657704585205,1148.6435934003373),c(595.286507660554,660.5780549100239,1030.1293461027885,1343.296282885965),c(893.9387216733065,1284.6551660851271,2178.9567238552813,752.592824199382),c(1065.461952694144,1545.5033737517538,2750.1910011694818,1829.928006600034),c(1347.9708037872883,1788.5462430111022,1080.9999310955188,1332.6963839535792),c(975.6644964538232,1136.8708573047177,1285.5420749204552,987.7178550632094),c(1536.6463579102096,1446.6837455913594,3029.9792186294985,2062.1621559368473),c(1837.3164922879132,1509.8926969371973,2379.2596522641566,2327.1596292464887),c(1169.3848514891222,1524.13696766302,893.4146489348259,796.9196742802675),c(1618.3721326907264,1920.3057472249616,1800.6067479718497,2770.4281300553434),c(1120.9547627302975,1563.3087121590322,1596.064604146913,1344.2599100616362),c(1544.718039370014,1448.4642794320873,916.7303337231606,1451.2225265611644),c(1247.074785539737,1202.7506094116472,1229.372470657649,2277.0510161115744),c(1371.1768879842252,1024.6972253388644,533.081338569653,700.5569567131251),c(1178.4654931314017,899.1695895675526,1216.6548244094663,1588.0575855065065),c(391.4765508004999,1061.1981690737848,437.69899170828364,205.2525884180133),c(724.43341101742,829.7287697791674,317.9411562045644,1084.0805726303518),c(814.2308672577408,551.9654906256264,1104.3156158838535,278.4882537690415),c(1422.6338572904765,1879.3534688882214,2700.380220030767,2081.4346994502757),c(798.0875043381326,713.1038032114948,110.21960081758232,791.137911226239),c(1420.6159369255254,1418.1952041397142,2514.914545578104,2470.7400784215306),c(968.6017751764946,974.8422777984853,807.5705367595936,1166.9525097380942),c(1103.8024396282137,1484.9652231670077,1176.3822779568882,1493.622122290707),c(1516.4671542606993,1858.8773297198513,2295.535147796955,1705.6201009384201),c(1138.1070858323812,1253.4958238723902,1918.2449757675383,1684.420303073649),c(994.834739920858,876.0226496380909,2827.5566825125925,1192.0068163055514),c(407.6199137201082,256.3968730648071,1245.269528467877,715.974991523868),c(983.7361779136273,1327.387978262595,2601.8184616073518,1966.763065545376),c(1839.3344126528643,1406.6217341749834,1740.1979282929824,1960.0176753156761),c(1171.402771854073,1353.2057189531486,1184.86070878901,1397.2594047235646),c(1428.6876183853296,1279.3135645629438,2992.886083738966,1514.8219201554782),c(1824.2000099157315,1739.5815623910871,2109.0096694902772,1444.4771363314644),c(921.1806466001455,373.0218396324798,2117.4881003223986,2596.9752384344874),c(807.1681459804122,616.0647088918281,952.7636647596779,633.1030544161255),c(883.8491198485514,527.0380168554368,1544.1342153001676,1601.5483659659064),c(825.3294292649714,736.2507431409565,803.3313213435326,357.50568217409824),c(1158.2862894818916,924.9873302581061,1016.3518960005908,1556.2578887093496),c(794.0516636082305,1092.357511286522,1370.3263832416724,805.5923188613103),c(703.2452471854341,698.8595324856722,253.29312110963627,565.6491521191258),c(1360.0783259769946,1218.7754139781975,931.5675876793737,547.3402357813687),c(965.574894629068,709.5427355300391,883.876414248689,1240.1881750891225),c(2068.368374074806,2243.472639317062,1622.5597004972935,2006.2717797479045),c(1263.218148459345,861.7783789122683,1028.0097383947582,1404.0047949532645),c(697.1914860905811,967.720142435574,281.9078251680471,1178.5160358461515),c(1719.268150938278,1370.1207904400628,1018.4715037086212,1083.1169454546805),c(474.2112857634921,567.1000282718129,2688.7223776365995,2578.6663220967303),c(2102.6730202789736,1843.742792073665,1018.4715037086212,1082.153318279009),c(1179.4744533138773,1072.7716390385158,1143.5283584824165,733.3202806859535),c(899.9924827681596,1197.4090078894637,768.3577941610306,357.50568217409824),c(3312.4162790671166,1352.3154520327846,1242.0901169058316,892.3187646717384),c(901.0014429506351,840.4119728235344,1695.6861664243434,1004.0995170496236),c(600.3313085729316,637.4311149805621,523.543103883516,347.869410417384),c(1227.904542072702,1684.3850133285243,1919.3047796215537,1458.9315439665356),c(1847.4060941126684,2087.675928253377,3674.339961870749,2794.518809447129),c(1803.0118460837457,1639.8716673103288,1038.6077769349104,774.7562492398248),c(1828.2358506456335,1182.2744702432772,1042.846992350971,1807.764581559591),c(956.4942529867884,795.8986268053387,958.062684029754,860.5190678745815),c(1667.8111816320268,1087.9061766847024,1147.7675738984774,1231.5155305080798),c(1258.1733475469675,1699.519550974711,1733.8391051688911,1396.295777547893),c(533.7399365295475,551.0752237052625,661.3176049054939,393.15988767394094),c(437.8887191943736,454.0361293855959,145.1931280000844,788.2470296992248),c(1344.9439232398618,1388.8163957677052,1165.784239416736,484.70446936272623),c(833.4011107247755,797.6791606460665,350.795075679036,953.9909039147096),c(1058.3992314168154,1176.0426018007297,2696.1410046147057,3364.0224702689407),c(420.73639609228985,807.4720967700696,626.3440777229919,427.8504659981122),c(0.0,0.0,0.0,0.0),c(960.5300937166905,1281.0940984036715,1571.6891155045632,906.7731723068099),c(1076.5605147013748,1199.1895417301914,1965.9361491982231,1346.1871644129792),c(971.6286557239212,868.9005142751796,858.4411217523239,942.4273778066525),c(720.3975702875179,398.83958032303326,258.59214037971236,574.3217967001686),c(1099.7665988983115,1242.8126208280232,1032.248953810819,700.5569567131251),c(1177.4565329489262,1062.9787029145127,2620.8949309796258,1661.2932508575348),c(542.8205781718272,613.3939081307365,1272.8244286722727,622.5031554837398),c(1019.0497843002704,1427.0978733433533,2772.4468821038013,2016.8716786802902),c(1498.30587097614,1468.0501516800934,3090.3880383083656,2051.5622570044616),c(283.51781127561975,266.18980918881016,294.62547141622963,184.05279055324195),c(2511.3018941815576,2139.3114096344843,2942.0154987462356,3523.984581430397),c(1038.220027767305,1277.533030722216,829.8264176939131,1495.5493766420498),c(916.1358456877679,924.0970633377423,1074.6411079714276,1451.2225265611644),c(707.2810879153361,1087.9061766847024,1264.345997840151,1713.3291183437916),c(1362.0962463419455,1538.3812383888426,1728.540085898815,1904.1272991267335),c(1175.4386125839753,869.7907811955436,1130.810712234234,1186.2250532515227),c(1446.8489016698888,2130.4087404308452,2099.4714348041402,2145.997720220261),c(888.893920760929,633.8700472991064,1292.9607018985619,595.52159456494),c(437.8887191943736,400.62011416376106,243.75488642349936,211.03435147204183),c(562.9997818213375,989.0865485243079,249.05390569357542,311.2515777418699),c(1234.9672633500306,1070.1008382774241,2682.363554512508,1770.1831217084057),c(295.625333465326,592.9177689623664,367.75193734327945,693.8115664834252),c(18.161283284559275,106.83203044366962,41.33235030659337,0.0),c(335.9837407643466,360.55810274738496,369.8715450513099,508.7951487545118),c(1147.1877274746607,1043.3928306665066,1390.4626564679616,2443.758517502731),c(1413.5532156481968,1660.3478064786987,2351.704752059761,2527.5940817861447),c(1439.7861803925603,1362.9986550771516,872.2185718545217,822.937608023396),c(1403.4636138234416,1608.7123250975917,2521.2733687021955,1745.1288151409485),c(974.6555362713477,796.7888937257026,304.1637061023666,790.1742840505676),c(1538.6642782751608,1379.0234596437022,2555.1870920306824,2573.848186218373),c(1528.5746764504056,1329.1685121033229,4318.700705112,4445.212161372278),c(1026.112505577599,545.733622183079,721.7264245843611,436.523110579155),c(477.2381663109187,872.4615819566352,545.7989848178355,344.9785288903697),c(1302.5675955758902,1439.5616102284482,1025.8901306867278,1364.4960807507362),c(1150.2146080220873,1727.1178255059922,758.8195594748936,2231.760538855018),c(1080.5963554312768,972.1714770373935,799.0921059274718,427.8504659981122),c(1697.0710269238166,1655.896471876879,945.3450377815714,1761.5104771273627),c(950.4404918919354,835.9606382217148,995.1558189202865,2175.870162666075),c(1433.732419297707,1378.1331927233382,4002.8791566154655,1642.0207073441063),c(762.7738979514895,1127.0779211807146,645.4205470952656,1137.08006729228),c(1729.357752763033,1164.469131835999,1333.23324835114,719.8295002265536),c(1932.1587494406117,1932.7694841100563,2580.6223845270474,2203.815350760546),c(587.2148262007498,1146.6637934287205,1061.923461723245,822.937608023396),c(1342.9260028749109,1192.0674063672802,1064.0430694312754,1794.2738011001911),c(384.4138295231713,592.0275020420025,907.1920990370237,691.8843121320823),c(1447.8578618523643,1277.533030722216,943.225430073541,1375.0959796831219),c(1279.3615113789533,1259.7276923149377,1868.4341946288234,948.209140860681),c(347.08230277157725,275.9827453128132,235.27645559137764,463.50467149795486),c(1627.4527743330061,1401.2801326528,517.1842807594247,1071.5534193466233),c(602.3492289378826,508.34241152779464,225.73822090524072,1329.805502426565),c(547.8653790842047,479.8538700761494,574.4136888762463,693.8115664834252),c(794.0516636082305,1038.941496064687,960.1822917377845,2956.4081749599286),c(798.0875043381326,1169.8107333581825,2057.0792806435315,1294.1512969267224),c(360.1987851437589,509.23267844815854,661.3176049054939,137.79868612101362),c(715.3527693751403,468.28040011141854,791.6734789493653,254.3975743772559),c(2146.058308125421,1545.5033737517538,3303.408612965424,2157.5612463283182),c(1193.5998958685345,1163.578864915635,323.24017547464047,501.08613134914043),c(424.7722368221919,593.8080358827303,385.7686028615381,291.01540705277),c(1837.3164922879132,1337.180914386598,1793.188120993743,1500.367512520407),c(1095.7307581684095,642.7727165027455,817.1087714457304,1178.5160358461515),c(1172.4117320365488,997.0989508075832,806.5107329055783,1652.620606276492),c(1851.4419348425704,1079.8937744014272,507.6460460732878,602.2669847946399),c(681.0481231709728,449.5847947837763,1125.5116929641579,1741.274306438263),c(1103.8024396282137,901.8403903286444,2177.896920001266,664.9027512132825),c(933.2881687898516,1513.453764618653,1866.3145869207929,1443.513509155793),c(681.0481231709728,1289.1065006869467,727.0254438544372,902.9186636041242),c(661.877879703938,703.3108670874917,1448.7518684387983,547.3402357813687),c(883.8491198485514,1271.3011622796685,859.500925606339,851.8464232935387),c(1733.3935934929352,1633.6397988677813,1546.2538230081982,2593.1207297318015),c(1397.4098527285885,919.6457287359227,1305.6783481467444,688.993430605068),c(1361.08728615947,1591.7972536106774,2169.4184891691443,1478.2040874799643),c(1190.573015321108,1071.8813721181518,729.1450515624676,841.246524361153),c(1095.7307581684095,996.2086838872192,614.6862353288245,528.0676922679403),c(1286.424232656282,1194.7382071283719,2532.931211096363,2080.471072274604),c(623.5373927698685,719.3356716540421,130.35587404387138,441.3412464575121),c(807.1681459804122,1234.800218544748,704.7695629201177,1039.7537225494664),c(1643.5961372526142,1338.071181306962,2761.848843563649,1420.3864569396787),c(1635.5244557928102,1777.8630399667354,2532.931211096363,1852.0914316404767),c(736.5409332071262,1183.1647371636411,240.5754748614537,425.92321164676935),c(893.9387216733065,825.2774351773478,403.7852683797968,740.0656709156535),c(784.9710219659509,902.7306572490083,1005.7538574604387,999.2813811712665),c(912.1000049578657,945.4634694264762,483.27055743093786,755.4837057263964),c(647.7524371492808,1120.8460527381671,686.7528974018591,928.9365973472526),c(1266.2450290067716,1295.3383691294941,1643.7557775775979,1156.3526108057085),c(880.8222393011248,743.3728785038678,3322.485082337698,3325.4773832420838),c(1764.6713591496762,1132.4195227028981,544.7391809638203,1219.9520044000226),c(888.893920760929,889.3766534435496,1518.6989228038026,996.3904996442523),c(1424.6517776554274,1416.4146702989865,1320.5156021029575,1456.0406624395214),c(808.1771061628876,733.5799423798647,289.3264521461536,977.1179561308238),c(1044.2737888621582,969.5006762763019,1070.4018925553667,1296.078551278065),c(1167.366931124171,1131.5292557825342,1579.1077424826697,1231.5155305080798),c(1364.1141667068966,1313.1437075367724,727.0254438544372,1231.5155305080798),c(790.0158228783284,573.3318967143603,1396.8214795920528,673.5753957943252),c(836.4279912722021,1062.9787029145127,3266.3154780748914,1900.2727904240478),c(835.4190310897266,865.339446593724,1126.571496818173,619.6122739567255),c(220.96227996213784,134.43030497495096,172.74802820447997,297.76079728247),c(1701.1068676537186,1363.8889219975156,1363.9675601175811,1976.3993373020903),c(0.0,0.0,0.0,0.0),c(819.2756681701184,552.8557575459903,937.9264108034649,401.83253225498373),c(710.3079684627627,902.7306572490083,929.4479799713432,2291.505423746646),c(768.8276590463425,1119.9557858178032,692.0519166719351,804.628691685639),c(1897.8541032364442,1968.3801609246127,2032.7037920011817,2194.179079003832),c(1419.60697674305,808.3623636904335,991.9764073582409,1046.4991127791664),c(1136.0891654674301,1375.4623919622463,2577.442972965002,1089.8623356843805),c(1208.7342986056672,970.3909431966657,1270.7048209642423,1118.7711509545231),c(1301.5586353934145,1606.0415243365,1738.078320584952,2235.6150475577033),c(100.89601824755152,259.95794074626275,196.06371299281471,411.468804011698),c(1452.902662764742,1969.2704278449767,1676.6096970520696,1088.898708508709),c(1521.511955173077,1833.059589029298,2007.2684995048164,4341.140426399765),c(1422.6338572904765,949.0245371079318,4126.876207535246,2020.726187382976),c(1350.997684334715,957.9272063115709,1217.7146282634815,866.30083092861),c(1234.9672633500306,1196.5187409690998,3106.285096118594,3051.8072653513996),c(1062.4350721467176,1359.437587395696,243.75488642349936,1246.9335653188225),c(761.764937769014,708.6524686096752,1181.6812972269643,422.06870294408367),c(2973.4056577553433,2625.397148153181,3986.9820988052375,2579.6299492724015),c(1189.5640551386325,993.5378831261276,2415.292983300674,2267.4147443548604),c(792.0337432432794,881.3642511602744,2056.0194767895164,1587.093958330835),c(1131.0443645550527,1007.7821538519502,1117.0332621320363,1279.696889291651),c(829.3652699948735,519.0256145721615,906.1322951830085,1023.3720605630522),c(948.4225715269843,1176.0426018007297,2279.6380899867268,2097.81636143669),c(1553.7986810122934,1711.0930209394419,1911.886152643447,1580.3485681011352),c(768.8276590463425,1228.5683501022006,1503.8616688475895,722.720381753568),c(2165.2285515924555,1813.4737167812918,2218.169466453844,2974.7170912976853),c(1516.4671542606993,1060.307902153421,1988.1920301325426,2339.686782530217),c(1911.9795457911014,1916.7446795435058,3950.9487677687202,3717.6736437403533),c(1076.5605147013748,892.9377211250053,1995.610657110649,2279.9418976385887),c(1052.3454703219625,967.720142435574,809.6901444676239,876.9007298609957),c(1395.3919323636376,984.6352139224883,3424.2262523231584,4615.774171466121),c(1773.7520007919557,2341.4020005570924,2030.584184293151,2002.4172710452187),c(1202.6805375108142,910.7430595322835,627.403881577007,646.5938348755254),c(1154.2504487519893,1619.3955281419587,3671.1605503087035,1323.060112196865),c(1035.1931472198787,1087.0159097643384,524.6029077375313,280.41550812038435),c(1731.375673127984,1549.0644414332096,2011.5077149208773,2059.2712744098326),c(249.21316507145227,460.2679978281433,273.4293943359254,469.2864345519834),c(1469.04602568435,2292.4373199370775,2422.7116102787804,2042.8896124234186),c(1263.218148459345,927.6581310191979,687.8127012558742,1026.2629420900664),c(2441.683641590747,2131.299007351209,3583.1968304254406,2843.6637954063717),c(1613.327331778349,1245.483421589115,1739.1381244389672,1707.5473552897631),c(468.15752466863904,318.71555749028107,958.062684029754,1645.875216046792),c(1481.1535478740564,1501.8802946539222,1663.8920508038868,1923.399842640162),c(859.634075469139,1181.3842033229132,2216.0498587458137,3124.079303526756),c(1019.0497843002704,886.7058526824578,1661.7724430958565,1269.0969903592652),c(238.1146030642216,370.351038871388,7.418626978106502,64.5630207699854),c(851.5623940093349,677.4931263969382,1231.4920783656794,631.1758000647826),c(651.7882778791828,815.4844990533447,1080.9999310955188,843.1737787124958),c(1035.1931472198787,1367.4499896789712,1431.7950067745548,1094.6804715627375),c(987.7720186435293,925.8775971784701,589.2509428324593,869.1917124556243),c(688.1108444483013,650.7851187860208,339.13723328486867,607.085120672997),c(156.38882828370487,148.67457570077357,399.5460529637359,190.79818078294193),c(298.6522140127525,168.26044794877964,436.6391878542684,444.2321279845264),c(1632.4975752453836,1856.2065289587597,2466.1635682934043,2016.8716786802902),c(1220.8418207953735,941.9024017450205,525.6627115915464,544.4493542543545),c(2065.3414935273795,2012.8935069428085,4298.56443188571,3477.730476998169),c(1704.1337482011452,1321.1561098200477,680.3940742777678,782.4652666451962),c(923.1985669650965,1128.8584550214423,2505.3763108919675,2856.1909486901004),c(2098.637179549072,1532.149369946295,1680.8489124681303,1535.0580908445781),c(1075.5515545188991,585.7956335994551,2049.660653665425,1210.3157326433084),c(1450.8847423997909,1291.7773014480385,3279.033124323074,3164.551644904956),c(205.8278772250051,283.10488067572453,55.10980040879116,177.307400323542),c(314.79557693236075,304.47128676445845,149.43234341614527,96.36271756714238),c(995.8437001033335,806.5818298497056,1331.1136406431096,570.4672879974829),c(1228.9135022551775,1387.9261288473413,3026.799807067453,1425.204592818036),c(181.61283284559275,349.874899703018,12.717646248182575,611.9032565513542),c(1917.0243467034788,1883.804803490041,2459.8047451693133,2440.8676359757164),c(748.6484553968323,550.1849567848985,649.6597625113266,821.0103536720532),c(2269.1514503874337,1949.6845555969705,873.2783757085368,793.0651655775819),c(1693.0351861939146,1557.0768437164847,527.7823192995769,1418.459202588336),c(1058.3992314168154,1159.1275303138154,2393.0371023663547,2439.904008800045),c(1094.721797985934,1224.117015500381,2672.825319826371,1182.3705445488372),c(1470.0549858668257,1745.8134308336344,1635.277346745476,1642.9843345197776),c(0.0,0.0,0.0,0.0),c(757.7290970391119,990.8670823650358,1080.9999310955188,479.88633348436906),c(0.0,0.0,0.0,0.9636271756714239),c(2053.2339713376737,1553.5157760350291,1811.2047865120016,1706.5837281140916),c(774.8814201411957,600.9301712456416,167.4490089344039,1290.2967882240366),c(1973.5261169221078,1475.1722870430046,614.6862353288245,1423.277338466693),c(1020.0587444827459,1639.8716673103288,1555.792057694335,1483.9858505339928),c(1306.6034363057922,1776.0825061260075,2839.21452490676,2738.6284332581868),c(495.39944959547796,454.0361293855959,627.403881577007,525.176810740926),c(1617.363172508251,991.7573492853996,1036.4881692268798,1320.1692306698508),c(1029.1393861250256,723.7870062558617,1310.9773674168205,1083.1169454546805),c(2372.065388999936,1445.7934786709957,2210.750839475738,1245.0063109674795),c(1526.5567560854545,1181.3842033229132,2065.5577114756534,1336.550892656265),c(1124.9906034601995,1704.8611524968944,1722.1812627747238,1129.3710498869088),c(1154.2504487519893,1506.3316292557417,1601.3636234169892,769.9381133614677),c(944.3867307970822,1157.3469964730875,2628.313557957732,2558.4301514076305),c(1104.8113998106892,948.134270187568,932.6273915333888,643.7029533485112),c(1421.624897108001,1281.0940984036715,2273.2792668626353,1987.9628634101475),c(1359.069365794519,1263.2887599963933,1004.6940536064235,1265.2424816565795),c(1420.6159369255254,1610.4928589383196,3333.08312087785,2898.590544419643),c(729.4782119297975,959.7077401522988,2165.1792737530836,1422.3137112910217),c(1526.5567560854545,778.9835553184244,950.6440570516475,960.7362941444096),c(1996.7322011190447,2724.2167763135753,5513.0996485871465,1930.145232869862),c(654.8151584266094,434.4502571375898,1511.280295825696,867.2644581042815),c(497.417369960429,795.0083598849748,765.178382598985,622.5031554837398),c(928.243367877474,836.8509051420788,626.3440777229919,1761.5104771273627),c(1573.9778846618037,1476.9528208837326,2094.172415534064,1889.672891491662),c(463.11272375626146,518.1353476517977,1017.411699854606,624.4304098350826),c(2465.898685970159,1981.7341647300716,1661.7724430958565,3959.544064833881),c(1755.5907175073964,1413.7438695378946,1361.8479524095508,876.9007298609957),c(2043.1443695129183,2190.056624095227,3640.426238542262,3054.698146878414),c(1278.3525511964779,1203.640876332011,2709.918454716904,1827.0371250730198),c(979.7003371837253,1322.9366436607754,651.779370219357,825.8284895504103),c(253.24900580135431,241.26233541862058,579.7127081463224,214.8888601747275),c(1208.7342986056672,1104.8212481716166,3026.799807067453,3427.6218638632545),c(646.7434769668052,637.4311149805621,1626.7989159133544,826.7921167260816),c(750.6663757617833,1184.9452710043688,1282.3626633584097,1178.5160358461515),c(1058.3992314168154,889.3766534435496,1859.9557637967016,1073.4806736979663),c(2985.5131799450496,2641.4219527197315,2632.552773373793,3591.438483727397),c(1111.8741210880178,826.1677020977118,752.4607363508023,1326.9146208995508),c(730.487172112273,853.765976628993,1610.9018581031262,1474.3495787772786),c(873.7595180237962,699.749799406036,2484.180233811663,632.1394272404541),c(1182.501333861304,1141.3221919065372,1758.214593811241,2443.758517502731),c(1357.051445429568,1408.4022680157111,1168.9636509787817,1474.3495787772786),c(1592.139167946363,1079.0035074810633,4179.8664002360065,2265.4874900035175),c(976.6734566362987,1129.7487219418063,1362.907756263566,1787.5284108704914),c(1275.3256706490513,1085.2353759236105,1543.0744114461525,1064.8080291169233),c(725.4423711998954,1143.9929926676289,488.56957670101394,562.7582705921116),c(1693.0351861939146,1752.0452992761818,2237.245935826118,1171.7706456164515),c(1453.9116229472174,1597.138855132861,3546.103695534908,1604.4392474929207),c(854.5892745567614,683.7249948394856,1091.597969635671,835.4647613071245),c(1935.1856299880383,1573.1016482830353,1422.256772088418,1345.2235372373077),c(478.2471264933942,378.36344115466324,953.8234686136932,456.75928126825494),c(955.485292804313,1023.8069584185006,357.15389880312733,566.6127792947972),c(694.1646055431545,236.811000816801,297.8048829782753,422.06870294408367),c(1445.8399414874134,1427.0978733433533,2030.584184293151,2084.32558097729),c(914.1179253228167,819.0455667348004,679.3342704237525,876.9007298609957),c(736.5409332071262,462.04853166887114,1633.1577390374457,1353.8961818183504),c(1474.0908265967278,1054.0760337108736,1811.2047865120016,2126.7251767068324),c(1182.501333861304,1095.9185789679775,1121.272477548097,809.4468275639961),c(761.764937769014,855.5465104697209,856.3215140442934,485.6680965383976),c(1766.689279514627,1798.3391791351053,2503.2567031839367,2344.504918408574),c(1861.5315366673256,1542.8325729906621,3406.2095868048996,3000.735025040814),c(1605.2556503185447,1416.4146702989865,3158.2154849653393,2403.2861761245313),c(233.06980215184402,328.5084936142841,987.7371919421801,577.2126782271829),c(873.7595180237962,1453.8058809542708,2240.4253473881636,941.4637506309812),c(1205.7074180582406,1255.2763577131182,1365.0273639715965,563.7218977677829),c(915.1268855052923,710.433002450403,2274.3390707166504,617.6850196053826),c(1190.573015321108,1100.369913569797,595.6097659565506,1265.2424816565795),c(1362.0962463419455,1371.9013242807907,2314.611617169229,1149.6072205760086),c(466.13960430368803,292.00754987936364,2099.4714348041402,1107.207624846466),c(630.600114047197,689.0665963616691,736.5636785405742,502.0497585248118),c(1782.8326424342354,1833.949855949662,3983.8026872431915,4166.7239076032365),c(652.7972380616584,940.1218679042927,883.876414248689,1281.6241436429937),c(407.6199137201082,435.3405240579537,1155.1862008765838,912.5549353608384),c(895.9566420382575,986.4157477632161,2049.660653665425,1281.6241436429937),c(1469.04602568435,1208.0922109338308,1968.0557569062535,2149.852228922947),c(1330.8184806852046,1642.5424680714204,2047.5410459573945,1173.6978999677942),c(1734.4025536754107,1530.3688361055674,2409.993964030598,3552.8933967005396),c(1181.4923736788282,1354.0959858735125,3178.3517581916285,1854.982313167491),c(1489.2252293338604,1386.1455950066133,2025.285165023075,2569.9936775156875),c(582.1700252883722,722.0064724151339,493.86859597109003,1018.5539246846951),c(2029.018926958261,2604.030742064447,2810.5998208483493,4036.6342388875946),c(1991.687400206667,2576.432467533166,5277.823192995768,3926.7807408610524),c(1555.8166013772445,1088.7964436050663,2253.142993636346,1356.787063345365),c(1025.1035453951235,1124.4071204196227,1396.8214795920528,1519.6400560338354),c(1296.513834481037,1649.6646034343319,1999.84987252671,1722.0017629248343),c(445.9604006541777,564.4292275107211,748.2215209347415,195.61631666129904),c(496.40840977795347,533.2698852979842,556.3970233579877,458.68653561959775),c(421.74535627476536,351.65543354374586,727.0254438544372,459.6501627952692),c(758.7380572215875,906.2917249304639,113.39901237962796,375.8145985118553),c(1300.549675210939,925.8775971784701,1875.8528216069299,900.0277820771099),c(236.09668269927056,397.94931340266936,243.75488642349936,424.9595844710979),c(3061.185193630713,2430.428692593484,1828.161648176245,2825.354879068615),c(1327.791600137778,1251.7152900316623,2240.4253473881636,3291.750432093584),c(1947.2931521777443,1693.2876825321634,2313.5518133152136,2019.7625602073044),c(1543.7090791875382,1855.3162620383957,3452.840956381569,1504.2220212230927),c(1350.997684334715,1490.3068246891912,2869.948836673201,3434.3672540929547),c(1580.0316457566569,1633.6397988677813,1948.9792875339797,1761.5104771273627),c(852.5713541918103,746.0436792649596,1815.4440019280626,640.8120718214968),c(388.44967025307335,235.92073389643707,369.8715450513099,423.9959572954265),c(1039.2289879497807,1388.8163957677052,715.3676014602698,1376.0596068587934),c(1170.3938116715976,1359.437587395696,2574.2635614029564,3669.492284956782),c(739.5678137545526,875.132382717727,801.2117136355023,497.2316226464547),c(723.4244508349444,837.7411720624426,967.6009187158909,503.01338570048324),c(875.7774383887472,521.6964153332533,2559.426307446743,1391.477641669536),c(519.6144939748904,607.162039688189,2021.0459496070143,961.699921320081),c(1549.7628402823914,1285.545433005491,3983.8026872431915,2735.7375517311725),c(1208.7342986056672,1428.8784071840812,526.7225154455616,557.9401347137544),c(1721.286071303229,1454.6961478746348,1943.6802682639036,1525.421819087864),c(1204.6984578757651,1367.4499896789712,3370.1762557683824,2441.831263151388),c(2200.5421579790986,2174.9220864490408,2282.8175015487723,2971.826209770671),c(939.3419298847047,1241.9223539076593,3906.437005900081,1557.221515885021),c(228.02500123946643,96.14882739930266,152.6117549781909,229.34326780979887),c(1011.9870630229418,1115.5044512159836,2561.545915154774,369.06920828215533),c(1395.3919323636376,1248.1542223502067,1966.9959530522383,731.3930263346107),c(781.9441414185243,730.018874698409,1101.136204321808,1281.6241436429937),c(962.5480140816416,978.403345479941,1859.9557637967016,1695.0202020060347),c(605.3761094853091,527.9282837758008,1716.8822435046477,970.3725659011238),c(1032.1662666724521,713.1038032114948,1235.7312937817403,2219.233385571289),c(546.8564189017293,634.7603142194704,861.6205333143695,576.2490510515115),c(1800.9939257187946,1426.2076064229896,2821.1978593885015,952.0636495633668),c(970.6196955414456,631.1992465380147,455.71565722654225,458.68653561959775),c(1489.2252293338604,1772.521438444552,1980.773403154436,2093.961852734004),c(1107.8382803581158,1039.831762985051,2151.4018236508855,2702.0106005826724),c(1747.5190360475924,1722.6664909041726,2023.1655573150447,1722.9653901005058),c(136.20962463419457,116.62496656767267,236.33625944539284,287.1608983500843),c(892.929761490831,614.2841750511003,436.6391878542684,622.5031554837398),c(639.6807556894767,575.1124305550882,377.2901720294164,912.5549353608384),c(1393.3740119986865,1490.3068246891912,883.876414248689,1912.7999437077763),c(2852.3304358582814,2725.1070432339393,3009.8429454032093,3498.93027486294),c(1371.1768879842252,1566.8697798404878,1065.1028732852906,1976.3993373020903),c(415.69159517991227,316.0447567291893,411.20389535790326,1006.0267714009665),c(586.2058660182744,495.8786746426998,1103.2558120298384,747.7746883210249),c(1619.3810928732019,1005.1113530908584,1568.5097039425177,1271.0242447106082),c(1181.4923736788282,1378.1331927233382,941.1058223655106,391.2326333225981),c(351.1181435014793,555.526558307082,268.1303750658493,594.5579673892685),c(1436.7592998451337,1579.3335167255825,2949.4341257243423,2316.559730314103),c(1352.0066445171904,1798.3391791351053,997.275426628317,1212.2429869946511),c(1485.1893886039584,1126.1876542603507,2206.5116240596767,988.6814822388809),c(868.7147171114186,814.5942321329809,524.6029077375313,1161.1707466840658),c(494.39048941300246,778.0932883980604,472.6725188907857,400.8689050793123),c(693.1556453606789,1283.7648991647634,1014.2322882925604,621.5395283080684),c(2228.793043088413,1873.1216004456742,1638.4567583075218,1777.892139113777),c(984.7451380961029,801.2402283275221,1590.765584876837,1422.3137112910217),c(1083.6232359787034,1062.9787029145127,1217.7146282634815,1068.662537819609),c(1418.5980165605745,1346.0835835902371,1257.9871747160598,1354.859808994022),c(873.7595180237962,478.07333623542155,260.71174808774276,444.2321279845264),c(470.1754450335901,820.8261005755282,400.60585681775115,957.8454126173954),c(1193.5998958685345,1622.9565958234143,1447.692064584783,462.5410443222835),c(623.5373927698685,446.9139940226846,883.876414248689,1327.878248075222),c(299.661174195228,399.72984724339716,311.58233308047306,193.6890623099562),c(1162.3221302117936,1545.5033737517538,3311.8870437975456,2912.0813248790428),c(547.8653790842047,649.8948518656568,727.0254438544372,927.0093429959097),c(1324.7647195903514,1176.9328687210937,1114.9136544240057,1121.6620324815374),c(1368.1500074367987,729.1286077780452,1752.915574541165,1664.184132384549),c(1073.5336341539482,658.797521069296,803.3313213435326,1027.226569265738),c(881.8311994836004,852.8757097086292,1271.7646248182575,715.0113643481965),c(974.6555362713477,808.3623636904335,1107.4950274458993,1844.3824142351052),c(1554.8076411947688,2164.2388834046737,2488.419449227724,1738.3834249112485),c(628.5821936822459,742.4826115835039,280.8480213140319,654.3028522808968),c(2165.2285515924555,1876.6826681271298,4201.062477316311,3374.6223692013264),c(1836.3075321054378,1654.1159380361514,2196.9733893735397,2186.4700615984607),c(1.0089601824755152,0.0,0.0,0.0),c(648.7613973317563,489.64680620015247,452.5362456644966,354.614800647084),c(1164.3400505767445,643.6629834231095,3080.849803622229,1436.768118926093),c(715.3527693751403,764.7392845926017,323.24017547464047,969.4089387254525),c(785.9799821484263,859.1075781511765,963.3617032998301,1328.8418752508935),c(969.6107353589701,607.162039688189,548.9783963798811,516.5041661598832),c(846.5175930969573,1395.0482642102525,1215.5950205554511,1632.384435587392),c(1776.7788813393822,2129.5184735104813,2993.9458875929813,2379.1954967327456),c(251.23108543640328,519.9158814925255,3259.9566549508,2387.8681413137883),c(1449.8757822173154,1398.609331891708,1988.1920301325426,1502.2947668717497),c(1041.2469083147316,1426.2076064229896,813.9293598836848,1163.0980010354085),c(1516.4671542606993,1188.5063386858246,671.9156434456461,889.4278831447242),c(1400.436733276015,1387.9261288473413,1655.4136199717652,1970.6175742480618),c(1185.5282144087305,964.1590747541184,1668.1312662199477,1635.2753171144063),c(1390.3471314512599,1969.2704278449767,1566.3900962344871,1517.7128016824927),c(1863.5494570322767,1700.4098178950749,2921.8792255199464,2565.1755416373303),c(1748.5279962300679,1444.0129448302678,1368.206775533642,1213.2066141703226),c(870.7326374763696,686.3957956005773,3124.3017616368525,928.9365973472526),c(845.5086329144817,921.4262625766505,1657.5332276797956,1467.6041885475786),c(404.5930331726816,768.3003522740573,944.2852339275562,884.6097472663671),c(1200.6626171458631,1079.0035074810633,302.0440983943362,1717.1836270464773),c(1135.0802052849547,1235.690485465112,701.590151358072,700.5569567131251),c(831.3831903598245,628.5284457769229,2280.697893840742,1283.5513979943366),c(680.0391629884973,880.4739842399105,953.8234686136932,794.9924199289247),c(1557.8345217421954,1737.8010285503592,1733.8391051688911,2096.852734261018),c(1089.6769970735565,1480.5138885651882,4577.292845491712,1663.2205052088775),c(1758.617598054823,1584.675118247766,3156.095877257309,1215.1338685216656),c(1512.4313135307973,1160.0177972341794,2708.8586508628887,1383.7686242641646),c(746.6305350318812,1200.0798086505554,2875.247855943277,1653.5842334521633),c(871.7415976588452,1221.4462147392894,1803.7861595338952,1450.258899385493),c(937.3240095197536,1614.9441935401392,2684.4831622205384,1154.4253564543658),c(1207.7253384231917,1544.61310683139,1815.4440019280626,1862.6913305728624),c(1459.9653840420706,2049.394450677729,1558.9714692563807,1419.4228297640072),c(2028.0099667757856,1530.3688361055674,3180.471365899659,3181.8969340670415),c(999.8795408332356,832.3995705402591,1317.3361905409117,1704.6564737627489),c(845.5086329144817,519.9158814925255,77.36568134311067,229.34326780979887),c(847.5265532794327,905.4014580101001,1129.7509083802188,964.5908028470952),c(414.68263499743676,556.416825227446,733.3842669785286,873.04622115831),c(1235.976223532506,1427.9881402637172,702.6499552120873,388.34175179558383),c(1158.2862894818916,1080.784041321791,1921.424387329584,825.8284895504103),c(585.1969058357988,503.8910769259751,587.1313351244289,329.56049407962695),c(1547.7449199174403,1209.8727447745584,1895.9890948332188,1144.7890846976516),c(1313.6661575831208,2015.5643077039003,2294.4753439429396,2277.0510161115744),c(1313.6661575831208,770.0808861147852,468.4333034747249,711.1568556455109),c(2458.8359646928307,2334.279865194181,5528.9967063973745,2928.462986865457),c(847.5265532794327,719.3356716540421,860.5607294603542,406.65066813334084),c(737.5498933896016,937.4510671432009,1925.663602745645,598.4124760919542),c(390.4675906180244,1052.2954998701457,2189.5547623954335,1824.1462435460053),c(1423.642817472952,1231.2391508632925,2145.0430005267945,1294.1512969267224),c(1306.6034363057922,1745.8134308336344,1201.8175704532534,1060.9535204142376),c(1115.9099618179198,795.0083598849748,870.0989641464912,457.7229084439263),c(1588.103327216461,1613.1636596994113,3105.225292264579,2748.2647050149008),c(1748.5279962300679,872.4615819566352,1930.962622015721,1024.3356877387237),c(1303.5765557583657,1152.895661871268,864.7999448764151,531.922200970626),c(1889.78242177664,1514.344031539017,1292.9607018985619,1638.1661986414206),c(1313.6661575831208,842.1925066642622,2104.770454074216,1124.5529140085516),c(1171.402771854073,1947.013754835879,2979.1086336367684,3066.261672986471),c(493.38152923052695,429.1086556154063,781.0754404092131,780.5380122938533),c(1390.3471314512599,2166.9096841657656,2365.482202161959,3648.2924870920106),c(1876.6659394044584,2079.663525970102,2522.3331725562107,1895.4546545456908),c(1075.5515545188991,1311.3631736960447,1868.4341946288234,1653.5842334521633),c(2503.230212721753,2457.136700204401,2028.4645765851208,2325.2323748951458),c(1599.2018892236915,1239.2515531465676,537.3205539857138,1239.224547913451),c(2621.2785540713885,2745.5831824023094,2267.9802475925594,2328.12325642216),c(2904.7963653470083,2744.6929154819454,3164.574308089431,3029.6438403109564),c(1142.1429265622833,876.9129165584549,555.3372195039724,1655.5114878035063),c(621.5194724049173,342.7527643401067,340.1970371388839,1517.7128016824927),c(1091.6949174385074,843.0827735846261,1231.4920783656794,1747.0560694922915),c(1643.5961372526142,2360.9878728050985,2540.3498380744695,2219.233385571289),c(432.843918281996,397.94931340266936,349.73527182502085,152.25309375608498),c(1401.4456934584907,1233.9099516243841,1521.878334365848,3616.492790294854),c(1533.619477362783,1371.0110573604268,1433.9146144825854,1523.4945647365212),c(1187.5461347736814,1487.6360239280996,1651.1744045557043,750.6655698480392),c(1267.253989189247,857.3270443104487,2634.6723810818235,2182.615552895775),c(1113.892041452969,1038.051229144323,2481.000822249617,1760.5468499516915),c(1363.105206524421,1122.626586578895,2280.697893840742,2646.12022439373),c(1428.6876183853296,1733.3496939485397,3434.8242908633106,3634.8017066326106),c(1114.9010016354443,1729.788626267084,699.4705436500417,1059.0262660628948),c(2016.911404768555,1834.8401228700259,2132.325354278612,3085.5342164998992),c(1331.82744086768,1372.7915912011547,1606.6626426870653,1616.002773600978),c(1988.6605196592404,1809.9126490998362,3330.9635131698196,1994.7082536398475),c(1298.5317548459882,1077.2229736403353,1636.3371505994915,2394.613531543488),c(448.9872812016043,163.8091133469601,510.82545763533346,2329.0868835978313),c(800.1054247030836,1266.849827677849,791.6734789493653,1074.4443008736375),c(256.2758863487809,378.36344115466324,1588.6459771688067,2171.0520267877178),c(862.6609560165655,1149.3345941898124,947.4646454896018,556.976507538083),c(1486.1983487864338,1513.453764618653,913.550922161115,554.0856260110687),c(1405.4815341883927,1305.1313052534972,3621.349769169988,4007.7254236174517),c(963.556974264117,1419.975737980442,645.4205470952656,900.9914092527813),c(1322.7467992254005,1744.0328969929067,3013.0223569652553,3036.3892305406566),c(985.7540982785783,2030.6988453500867,1638.4567583075218,1421.3500841153502),c(1194.60885605101,798.5694275664305,1865.2547830667777,1553.3670071823353),c(1166.3579709416956,828.8385028588035,1827.10184432223,2728.9921615014723),c(1183.5102940437794,1546.3936406721177,2005.148891796786,1532.167209317564),c(2009.8486834912262,1498.3192269724664,2630.4331656657628,2344.504918408574),c(770.8455794112937,793.227826044247,680.3940742777678,794.9924199289247),c(2455.809084145404,1714.6540886208975,2497.957683913861,2508.321538272716),c(1664.7843010846002,1302.4605044924056,1715.8224396506325,1066.7352834682663),c(962.5480140816416,768.3003522740573,1216.6548244094663,893.2823918474099),c(753.6932563092099,547.5141560238068,1232.5518822196946,486.63172371406904),c(504.4800912377576,424.65732101358674,507.6460460732878,141.6531948236993),c(476.2292061284432,324.0571590124645,149.43234341614527,209.10709712069897),c(1136.0891654674301,1086.1256428439744,1762.453809227302,1588.0575855065065),c(238.1146030642216,239.48180157789272,519.3038884674552,369.06920828215533),c(820.2846283525939,1062.0884359941488,4078.125230250546,2327.1596292464887),c(518.6055337924148,1072.7716390385158,846.7832793581565,821.0103536720532),c(583.1789854708478,1074.5521728792437,1935.2018374317818,1404.968422128936),c(661.877879703938,880.4739842399105,2158.820450628992,561.7946434164401),c(1508.3954728008953,1847.3038597551206,1859.9557637967016,1809.691835910934),c(2013.8845242211285,2335.170132114545,1916.125368059508,3394.858539890426),c(3020.8267863316923,3147.983830406798,2149.282215942855,3862.217720091067),c(609.4119502152112,989.9768154446718,765.178382598985,1092.7532172113947),c(1125.999563642675,1294.4481022091302,1679.789108614115,1373.1687253317791),c(1330.8184806852046,1081.674308242155,3430.5850754472494,1592.8757213848637),c(881.8311994836004,927.6581310191979,595.6097659565506,581.0671869298686),c(1480.144587691581,1457.3669486357264,2426.9508256948416,2549.7575068265874),c(871.7415976588452,762.06848383151,509.76565378131824,509.7587759301832),c(1176.4475727664508,1517.0148323001085,2998.185103009042,2041.9259852477471),c(1388.329211086309,803.9110290886139,772.5970095770914,1227.661021805394),c(1164.3400505767445,808.3623636904335,551.0980040879116,840.2828971854816),c(839.4548718196287,292.00754987936364,987.7371919421801,292.94266140411287),c(1353.0156046996658,1107.4920489327085,3766.5428971700726,2328.12325642216),c(1602.228769771118,1442.2324109895399,1554.7322538403198,1592.8757213848637),c(509.5248921501352,404.18118184521677,847.8430832121717,219.70699605308465),c(672.9764417111686,1175.1523348803657,1603.4832311250198,1136.1164401166088),c(2228.793043088413,1548.1741745128456,3067.072353520031,1037.8264681981234),c(1757.6086378723476,2160.677815723218,2614.5361078555343,3398.713048593112),c(2133.9507859357145,1787.6559760907385,2416.3527871546894,1873.2912295052479),c(1137.0981256499056,1284.6551660851271,2013.6273226289077,1711.4018639924489),c(1091.6949174385074,977.513078559577,366.6921334892643,2769.464502879672),c(1389.3381712687844,1029.148559940684,1858.8959599426864,874.9734755096529),c(1489.2252293338604,1329.1685121033229,1606.6626426870653,882.6824929150242),c(1386.3112907213579,1479.6236216448242,1046.0264039130168,882.6824929150242),c(1169.3848514891222,906.2917249304639,3418.927233053082,2144.0704658689183),c(1586.08540685151,1000.6600184890387,3040.5772571696507,2888.954272662929),c(1582.0495661216078,989.9768154446718,3247.2390087026174,1433.8772373990787),c(2016.911404768555,2628.9582158346366,5551.2525873316945,2456.2856707864594),c(2024.983086228359,2236.3505039541506,3805.755639768636,1478.2040874799643),c(1980.5888381994364,1800.1197129758332,3010.9027492572245,2939.0628857978427),c(2872.5096395077917,2957.466709448921,6246.483915565675,4373.903750372593),c(1897.8541032364442,1791.217043772194,816.0489675917153,1858.8368218701767),c(876.7863985712228,499.4397423241555,1898.1087025412494,3763.9277481725817),c(2978.450458667721,2355.646271282915,4291.145804907604,3594.329365254411),c(1610.3004512309224,1562.4184452386683,1515.5195112417568,3113.4794045943704),c(1029.1393861250256,1125.2973873399867,2337.9273019575635,1138.0436944679516),c(1102.793479445738,1399.499598812072,1615.141073519187,2674.065412488201),c(906.0462438630127,1306.9118390942251,1407.419518132205,1167.9161369137657),c(325.8941389395914,429.99892253577025,1308.8577597087901,535.7767096733116),c(481.2740070408208,376.58290731393544,280.8480213140319,111.78075237788516),c(1085.6411563436543,935.6705333024731,1687.2077355922215,1854.0186859918194),c(1656.712619624796,1825.9374536663865,1823.9224327601844,2776.209893109372),c(1455.9295433121686,1448.4642794320873,2361.242986745898,1927.2543513428477),c(543.8295383543027,588.4664343605468,1005.7538574604387,476.9954519573548),c(1219.832860612898,1379.0234596437022,2022.1057534610295,1231.5155305080798),c(487.32776813567386,665.9196564322074,645.4205470952656,580.1035597541971),c(1452.902662764742,1131.5292557825342,1721.1214589207084,2026.5079504370044),c(1381.2664898089804,1106.6017820123445,712.1881898982242,1187.1886804271942),c(1311.6482372181697,1605.151257416136,1735.9587128769215,1458.9315439665356),c(2398.2983537442997,3105.2510182293304,3046.936080293742,2263.5602356521745),c(1653.6857390773694,1664.7991410805182,5006.513406367873,3458.4579334847404),c(872.7505578413206,756.7268823093265,65.7078389489433,570.4672879974829),c(859.634075469139,892.9377211250053,1209.2361974313599,768.9744861857962),c(1234.9672633500306,928.5483979395618,607.267608350718,1347.1507915886505),c(2061.3056527974777,1876.6826681271298,1690.3871471542673,1105.2803704951232),c(221.97124014461335,448.6945278634124,190.76469372273863,660.0846153349254),c(539.7936976244007,1099.479646649433,457.8352649345727,517.4677933355546),c(1447.8578618523643,1575.772449044127,2549.8880727606065,1058.0626388872233),c(10.089601824755153,1.780533840727827,0.0,0.9636271756714239),c(1261.200228094394,1255.2763577131182,1795.3077287017736,1677.674912843949),c(706.2721277328607,1454.6961478746348,1400.0008911540986,1048.426367130509),c(1591.1302077638875,1377.2429258029742,1489.0244148913764,2710.683245163715),c(1136.0891654674301,1010.4529546130418,1769.8724362054083,1583.2394496281495),c(702.2362870029586,859.1075781511765,966.5411148618757,2056.3803928828183),c(986.7630584610539,1111.053116614164,859.500925606339,1631.4208084117206),c(2785.7390638148977,1973.7217624467962,2343.2263212276393,2976.6443456490283),c(1106.8293201756403,1368.3402565993351,2991.826279884951,2436.0495000973597),c(1433.732419297707,2069.870589846099,1044.9666000590016,1130.33467706258),c(605.3761094853091,222.56673009097838,1061.923461723245,313.17883209321275),c(719.3886101050424,1519.6856330612004,1043.9067962049864,1400.1502862505788),c(652.7972380616584,842.1925066642622,960.1822917377845,429.777720349455),c(1497.2969107936647,1406.6217341749834,1734.8989090229063,1765.3649858300485),c(837.4369514546777,830.6190366995313,590.3107466864745,500.122504173469),c(1037.2110675848296,1116.3947181363476,3405.1497829508844,1120.698405305866),c(1381.2664898089804,843.97304050499,770.477401869061,731.3930263346107),c(1239.0031040799327,1387.0358619269773,1885.3910562930669,1726.8198988031916),c(1009.9691426579907,768.3003522740573,1880.0920370229908,765.1199774831106),c(1468.0370655018746,1433.3297417859008,3158.2154849653393,1675.7476584926062),c(1134.071245102479,1554.406042955393,1433.9146144825854,1161.1707466840658),c(1918.0333068859545,1573.1016482830353,1564.2704885264568,1050.353621481852),c(1088.6680368910809,739.8118108224121,1734.8989090229063,1689.238438952006),c(891.9208013083554,781.6543560795161,1307.7979558547747,939.5364962796383),c(1484.180428421483,1996.868702376258,1922.4841911835993,1703.6928465870774),c(1135.0802052849547,1164.469131835999,1013.1724844385451,1021.4448062117093),c(1446.8489016698888,1156.4567295527236,2000.9096763807252,1141.8982031706373),c(632.6180344121481,1265.0692938371212,808.6303406136087,1399.1866590749075),c(1840.3433728353398,1545.5033737517538,4514.7644181048145,3833.308904820924),c(708.2900480978117,397.05904648230546,738.6832862486045,516.5041661598832),c(988.7809788260049,1087.0159097643384,316.88135235054915,347.869410417384),c(1269.2719095541981,978.403345479941,1526.117549781909,3545.1843792951686),c(1006.9422621105642,1565.9795129201239,823.4675945698217,1274.8787534132937),c(1040.2379481322562,756.7268823093265,1161.5450240006753,941.4637506309812),c(2.0179203649510304,9.792936124003049,39.21274259856294,17.345289162085628),c(124.10210244448837,66.77001902729351,3.179411562045644,52.03586748625689),c(995.8437001033335,924.9873302581061,2025.285165023075,1841.491532708091),c(1445.8399414874134,1690.6168817710718,873.2783757085368,1962.9085568426904),c(1252.1195864521144,1038.051229144323,4998.034975535752,1655.5114878035063),c(2631.368155896144,2631.6290165957284,2415.292983300674,3417.9855921065405),c(1082.6142757962277,1356.7667866346042,1037.5479730808952,1182.3705445488372),c(1420.6159369255254,1136.8708573047177,476.9117343068466,1917.6180795861335),c(1139.1160460148567,1354.9862527938765,710.0685821901938,1773.07400323542),c(347.08230277157725,338.30142973828714,501.2872229491965,337.26951148499836),c(1246.0658253572612,1268.6303615185768,1497.5028457234982,1513.858292979807),c(1325.773679772827,1393.2677303695248,1064.0430694312754,1485.9131048853355),c(530.713055982121,704.2011340078556,1359.7283447015204,1066.7352834682663),c(882.8401596660758,1350.534918192057,2221.3488780158896,1423.277338466693),c(934.2971289723271,1469.8306855208211,1922.4841911835993,980.9724648335095),c(510.5338523326107,842.1925066642622,2560.4861113007582,674.5390229699967),c(1245.0568651747858,1173.371801039638,2515.9743494321197,2229.833284503675),c(1978.5709178344853,1322.0463767404117,1622.5597004972935,1247.897192494494),c(2436.6388406783694,2240.8018385559703,1592.8851925848676,2510.248792624059),c(1011.9870630229418,1521.4661669019283,2052.840065227471,2081.4346994502757),c(1120.9547627302975,854.656243549357,2141.8635889647485,2200.924469233532),c(1348.9797639697638,1761.8382354001849,4052.6899377541804,2864.863593271143),c(1160.3042098468425,1194.7382071283719,2114.308688760353,745.847433969682),c(1076.5605147013748,1218.7754139781975,716.4274053142851,702.484211064468),c(1806.0387266311723,2289.7665191759856,3167.7537196514763,2812.8277257848863),c(1992.6963603891425,2129.5184735104813,6633.312322281228,3943.1624028474666),c(1138.1070858323812,997.9892177279471,1133.9901237962797,1075.407928049309),c(775.8903803236713,735.3604762205925,2400.455729344461,1740.3106792625915),c(1402.4546536409662,1077.2229736403353,1154.1263970225687,1855.9459403431624),c(803.1323052505102,883.1447850010022,4742.622246718085,1139.007321643623),c(1513.4402737132727,1636.310599628873,1808.0253749499561,1724.8926444518488),c(1370.1679278017498,1477.8430878040965,2247.8439743662702,3281.1505331611984),c(2187.425675606917,2409.952553425114,2846.6331518848665,2210.5607409902464),c(1229.9224624376532,955.2564055504793,571.2342773142007,1075.407928049309),c(568.0445827337151,754.0560815482347,1298.259721168638,1059.0262660628948),c(1703.1247880186697,1825.9374536663865,3305.528220673454,5254.658988936274),c(1192.590935686059,1422.6465387415337,788.4940673873197,2160.4521278553325),c(1643.5961372526142,2459.807500965493,2198.033193227555,1791.3829195731769),c(1038.220027767305,1098.5893797290694,589.2509428324593,632.1394272404541),c(1661.7574205371736,1667.46994184161,3779.260543418255,2728.9921615014723),c(1014.0049833878928,1440.4518771488122,910.3715105990693,1671.8931497899205),c(922.1896067826209,1219.6656808985615,1232.5518822196946,863.4099494015958),c(307.73285565503215,397.05904648230546,1998.7900686726948,840.2828971854816),c(1957.3827540024995,1926.5376156675088,3293.870378279287,2555.5392698806163),c(899.9924827681596,539.5017537405316,227.85782861327112,596.4852217406113),c(1150.2146080220873,1073.6619059588797,793.7930866573957,2786.8097920417576),c(1437.7682600276091,1566.8697798404878,965.4813110078605,3433.4036269172834),c(1909.9616254261502,2043.1625822351816,4353.674232294502,2053.489511355804),c(1102.793479445738,1176.0426018007297,2567.904738278865,1343.296282885965),c(1685.972464916586,1161.798331074907,3326.7242977537585,2670.2109037855157),c(1363.105206524421,1484.9652231670077,947.4646454896018,936.6456147526239),c(1569.9420439319017,1356.7667866346042,1746.5567514170737,1473.385951601607),c(1610.3004512309224,1439.5616102284482,1547.3136268622134,1073.4806736979663),c(2207.6048792564275,1987.075766252255,2022.1057534610295,3030.607467486628),c(1221.850780977849,1583.784851327402,2945.1949103082816,1796.201055451534),c(724.43341101742,878.6934503991827,861.6205333143695,797.883301455939),c(1513.4402737132727,1306.9118390942251,954.8832724677084,1436.768118926093),c(1091.6949174385074,1241.9223539076593,3518.5487953305123,1634.3116899387348),c(1070.5067536065217,1123.5168534992588,1861.0155676507168,1999.5263895182045),c(1236.9851837149818,1263.2887599963933,2166.239077607099,1169.8433912651085),c(1199.6536569633877,428.2183886950424,514.0048691973791,143.58044917504216),c(1005.9333019280887,1010.4529546130418,2862.5302096950945,2332.9413923005172),c(933.2881687898516,1035.3804283832314,1430.7352029205397,854.7373048205529),c(1557.8345217421954,1291.7773014480385,1781.5302785995757,3893.0537897125523),c(1348.9797639697638,1977.282830128252,3477.2164450239193,908.7004266581527),c(840.4638320021041,277.763279153541,148.37253956213004,1077.3351824006518),c(1828.2358506456335,1839.2914574718454,2157.760646774977,1780.7830206407914),c(1837.3164922879132,973.9520108781214,1465.7087301030417,881.7188657393529),c(2708.049129764283,1938.1110856322398,2851.9321711549424,2218.269758395618),c(816.2487876226918,569.7708290329047,2501.1370954759063,1337.5145198319362),c(1163.331090394269,1223.226748580017,1192.2793357671164,1237.2972935621083),c(1222.8597411603243,1456.4766817153625,3022.560591651392,1768.2558673570627),c(1078.5784350663257,1143.102725747265,1995.610657110649,756.4473329020677),c(1330.8184806852046,780.7640891591521,433.4597762922228,440.3776192818407),c(800.1054247030836,1235.690485465112,839.36465238005,686.1025490780538),c(168.49635047341104,89.02669203639135,551.0980040879116,116.59888825624229),c(702.2362870029586,957.036939391207,1436.0342221906158,1179.4796630218227),c(1004.9243417456131,1506.3316292557417,1437.094026044631,1997.5991351668617),c(541.8116179893517,600.0399043252777,1368.206775533642,378.70548003886955),c(701.2273268204831,1015.7945561352253,775.776421139137,917.3730712391955),c(1109.8562007230666,890.2669203639135,2501.1370954759063,1336.550892656265),c(932.2792086073761,1382.5845273251578,247.99410183956022,480.8499606600405),c(2292.3575345843706,2114.3839358642945,2703.5596315928124,2992.0623804597712),c(1217.8149402479469,1916.7446795435058,1746.5567514170737,1713.3291183437916),c(3034.95222888635,2458.026967124765,2044.361634395349,3298.495822323284),c(1406.4904943708682,963.2688078337544,2263.7410321764983,3167.4425264319702),c(1522.5209153555525,1095.0283120476136,1565.330292380472,2805.118708379515),c(2369.0385084525096,1810.8029160202002,2013.6273226289077,967.4816843741096),c(1256.1554271820164,1284.6551660851271,1479.4861802052396,1622.7481638306779),c(1703.1247880186697,1096.8088458883415,2283.8773054027874,2514.1033013267447),c(653.8061982441338,927.6581310191979,1756.0949861032107,1299.9330599807508),c(2105.6999008264,2094.7980636162883,2966.3909873885855,3179.969679715699),c(1530.5925968153565,1440.4518771488122,2015.7469303369382,1464.7133070205643),c(495.39944959547796,1052.2954998701457,1991.3714416945882,3096.134115432285),c(1063.444032329193,808.3623636904335,822.4077907158065,1445.440763507136),c(1484.180428421483,1172.481534119274,1100.0764004677928,614.7941380783684),c(2560.7409431228575,2118.8352704661143,2612.416500147504,2026.5079504370044),c(1534.6284375452587,1292.6675683684025,2315.671421023244,1773.07400323542),c(1887.764501411689,1142.212458826901,2322.030244147335,1271.0242447106082),c(1266.2450290067716,900.9501234082804,2131.2655504245968,2120.943413652804),c(1130.035404372577,762.06848383151,668.7362318836005,688.0298034293967),c(1471.0639460493012,1432.4394748655368,1327.934229081064,1848.236922937791),c(2258.052888380203,2601.3599413033553,3580.017418863395,4608.065154060749),c(1527.5657162679302,1810.8029160202002,5722.940811682159,3839.0906678749525),c(1407.4994545533436,1306.9118390942251,2501.1370954759063,2666.3563950828297),c(583.1789854708478,515.464546890706,1014.2322882925604,999.2813811712665),c(1670.8380621794531,1655.896471876879,2227.707701139981,1865.5822120998766),c(1149.2056478396119,897.3890557268248,1848.2979214025343,1780.7830206407914),c(823.3115089000204,966.8298755152101,1071.461696409382,1721.038135749163),c(646.7434769668052,770.9711530351491,1531.416569051985,606.1214934973256),c(1583.0585263040834,1111.053116614164,2384.558671534233,1850.164177289134),c(565.0177021862885,616.9549758121921,507.6460460732878,1940.7451318022477),c(2526.43629691869,1862.4383974013072,1225.1332552415881,1731.6380346815488),c(1843.3702533827664,1671.9212764434296,2810.5998208483493,2206.706232287561),c(1015.0139435703683,1476.9528208837326,2243.604758950209,1498.440258169064),c(861.65199583409,1212.5435455356503,1062.9832655772602,1772.1103760597484),c(149.32610700637625,97.92936124003049,200.30292840887557,23.127052216114173),c(1176.4475727664508,1200.9700755709193,1197.5783550371925,2334.86864665186))
+targetgene="NonTargeting"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(1607.2735706834958,1189.3966056061886,12495.08743883938,10486.190925656434),c(2182.380874694539,1903.390675738047,25417.27583084689,22540.203266130276),c(336.9927009468221,543.9530883423512,2631.492969519778,4792.117944613991),c(876.7863985712228,932.9997325413814,8679.793564384607,11139.53015076166))
+targetgene="PTEN"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(543.8295383543027,694.4081978838526,7154.735818456714,6270.322032093955),c(737.5498933896016,531.4893514572564,5855.41629343406,9585.199516403653),c(534.7488967120231,640.1019157416538,16263.749943717483,7497.0194267236775),c(82.73473496299225,183.3949855949662,1781.5302785995757,241.8704210935274))
+targetgene="KCTD5"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(449.9962413840798,436.2307909783176,1467.8283378110723,2362.8138347463314),c(272.41924926838914,449.5847947837763,4753.220285258238,5666.127792947972),c(770.8455794112937,762.9587507518739,10535.510112765249,7504.728444129049),c(668.9406009812666,752.2755477075069,7237.400519069901,5827.0535312851))
+targetgene="KEAP1"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+par(mfrow=c(1,1));
+@
+%
+
+
+<<fig=TRUE,echo=FALSE,width=4.5,height=4.5>>=
+par(mfrow=c(2,2));
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(1236.9851837149818,1205.421410172739,9426.955281465334,7656.017910709463),c(1383.2844101739313,1559.7476444775766,11037.85713956846,8322.847916274088),c(382.39590915822026,460.2679978281433,2249.9635820743006,1969.6539470723903),c(366.252546238612,373.0218396324798,1870.5538023368538,6577.71910113314))
+targetgene="PAWR"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(375.33318788089167,494.098140801972,5484.4849445287355,3408.349320349826),c(198.7651559476765,80.12402283275222,1235.7312937817403,726.5748904562536),c(419.72743590981435,212.77379396697535,2840.274328760775,4572.410948560906),c(356.16294441385685,158.4675118247766,2363.3625944539285,2545.902998123902))
+targetgene="FURIN"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(902.0104031331106,824.387168256984,6355.643712529242,5968.7067261088),c(357.1719045963324,242.15260233898448,728.0852477084525,2256.8148454224747),c(318.8314176622628,122.85683501022007,1337.472463767201,1769.2194945327342),c(2680.807204837444,2412.6233541862057,9666.470952472773,8504.009825300316))
+targetgene="ROCK2"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(38.34048693406958,75.67268823093265,1280.2430556503791,653.3392251052254),c(469.1664848511146,600.0399043252777,7682.51813775629,6337.775934390955),c(371.2973471509896,543.9530883423512,2694.0213969066754,2739.592060433858),c(123.09314226201286,63.20895134583786,735.5038746865589,285.23364399874146))
+targetgene="NF1"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+par(mfrow=c(1,1));
+@
+%
+
+
+<<fig=TRUE,echo=FALSE,width=4.5,height=4.5>>=
+par(mfrow=c(2,2));
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(1185.5282144087305,493.20787388160807,2910.221383125779,2233.6877932063603),c(342.03750185919966,403.2909149248528,1204.996982015299,1888.7092643159908),c(436.8797590118981,495.8786746426998,3288.571359009211,2234.651420382032),c(913.1089651403413,638.321381900926,3216.5046969361765,1457.0042896151929))
+targetgene="CARM1"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+# parameters
+# Do not modify the variables beginning with "__"
+targetmat=list(c(722.4154906524689,981.9644131613966,4284.786981783513,6125.777955743241),c(808.1771061628876,576.892964395816,1261.1665862781053,726.5748904562536),c(182.62179302806825,271.5314107109936,2127.0263350085356,1043.608231252152),c(733.5140526596996,462.93879858923503,4810.449693375059,1821.255362018991))
+targetgene="DAPK3"
+collabel=c("DMSO_rep1","DMSO_rep2","osi_rep1","osi_rep2")
+
+# set up color using RColorBrewer
+#library(RColorBrewer)
+#colors <- brewer.pal(length(targetgenelist), "Set1")
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+## code
+
+targetmatvec=unlist(targetmat)+1
+yrange=range(targetmatvec[targetmatvec>0]);
+# yrange[1]=1; # set the minimum value to 1
+for(i in 1:length(targetmat)){
+  vali=targetmat[[i]]+1;
+  if(i==1){
+    plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+    axis(1,at=1:length(vali),labels=(collabel),las=2)
+    # lines(0:100,rep(1,101),col='black');
+  }else{
+    lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+  }
+}
+
+
+
+par(mfrow=c(1,1));
+@
+%__INDIVIDUAL_PAGE__
+
+
+
+
+
+
+
+
+
+\end{document}
+

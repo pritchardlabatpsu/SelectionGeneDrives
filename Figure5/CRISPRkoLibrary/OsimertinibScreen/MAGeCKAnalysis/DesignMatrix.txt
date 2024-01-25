@@ -1,0 +1,6 @@
+samples	baseline	DMSO	osi
+D0	1	0	0
+DMSO_rep1	1	1	0
+DMSO_rep2	1	1	0
+osi_rep1	1	0	1
+osi_rep2	1	0	1
