@@ -1,0 +1,113 @@
+---
+title: "PlotBypassGDExperiments"
+author: "Scott Leighow"
+date: '2022-07-26'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+library(ggplot2)
+library(reshape2)
+```
+
+
+## Import and parse data
+
+```{r}
+
+counts.df = read.csv("BaF3VaryGeneDrive.csv",header=T,stringsAsFactors=F)
+
+counts.df$condition = as.numeric(gsub("C","",counts.df$condition))
+counts.df$replicate = gsub("R","",counts.df$replicate)
+counts.df$day = as.numeric(gsub("D","",counts.df$day))
+
+counts.df$sen = as.numeric(gsub(",","",counts.df$sen))
+counts.df$res = as.numeric(gsub(",","",counts.df$res))
+counts.df$gd = as.numeric(gsub(",","",counts.df$gd))
+
+# Calculate concentrations
+counts.df$sen.conc = counts.df$sen/counts.df$volume
+counts.df$res.conc = counts.df$res/counts.df$volume
+counts.df$gd.conc = counts.df$gd/counts.df$volume
+
+# Correct for dilution on day 0
+
+counts.df$sen.conc[counts.df$day==0] = counts.df$sen.conc[counts.df$day==0]*0.75
+counts.df$res.conc[counts.df$day==0] = counts.df$res.conc[counts.df$day==0]*0.75
+counts.df$gd.conc[counts.df$day==0] = counts.df$gd.conc[counts.df$day==0]*0.75
+
+counts.df$conc = counts.df$sen.conc+counts.df$res.conc+counts.df$gd.conc
+
+# Find average starting conc
+init.conc = mean(counts.df$conc[counts.df$day==0]) # 1191
+
+# So if we wanna flip the switch at >50% rebound, we want roughly >600k/mL
+
+
+# Reshape
+
+counts.rs = melt(counts.df,id.vars=c("condition","replicate","day"),measure.vars = c("sen.conc","res.conc","gd.conc"))
+
+```
+
+## Loop through conditions and plot
+
+```{r}
+cndtns = 1:8
+
+# Scaling factor: values are in conc (k/mL), scale to get M/well (2 mL)
+sclng.fctr = 2/1000
+
+x.upper.lim = c(27,27,27,27,27,25,21,8.25)
+perc.GD = c(10,3,1,0.3,0.1,0.03,0.01,0)
+
+for (i in cndtns) {
+  
+  cndtn.i = cndtns[i]
+  
+  sub.counts = counts.rs[counts.rs$condition==cndtn.i,]
+  
+  # Aggregate counts
+  sub.agg = aggregate(sub.counts$value,
+                      by = list(condition = sub.counts$condition,
+                                day = sub.counts$day,
+                                population = sub.counts$variable),
+                     FUN = function(x) c(mean=mean(x),sem=sd(x)/sqrt(length(x))))
+  sub.agg = do.call(data.frame,sub.agg)
+  
+  clrs = c("#2ABAFC","#EE1D23","#1AD31A")
+
+  # Plot
+  g = ggplot(sub.agg,aes(x=day,y=x.mean*sclng.fctr,color=population))+theme_bw()+
+    geom_point(size=4)+
+    geom_line(size=2)+
+    geom_errorbar(aes(ymin=(x.mean-x.sem)*sclng.fctr,ymax=(x.mean+x.sem)*sclng.fctr),width=0.5,size=1.25)+
+    scale_color_manual(values=clrs)+
+    scale_x_continuous(limits = c(0,x.upper.lim[i]))+
+    scale_y_continuous(limits = c(-0.1,5.25))+
+    xlab("Days")+ylab("Population Size (M)")+
+    ggtitle(paste0(perc.GD[i],"% Gene Drive"))+
+    theme(
+      plot.title = element_text(size=26,face="bold",hjust=0.5),
+      axis.title = element_text(size=20,face="bold"),
+      axis.text = element_text(size=18,face="bold",color="black"),
+      legend.title = element_text(size=18,face="bold"),
+      legend.text = element_text(size=16,face="bold")
+    )+
+    guides(color="none")
+  
+  print(g)
+  
+  # # Check to see if we're ready to flip that switch
+  # cnts = sum(sub.agg$x.mean[sub.agg$population%in%c("res.conc","gd.conc")&sub.agg$day==max(sub.agg$day)])
+  # swtch2.str = cnts>0.5*init.conc
+  # print(paste(cndtn.i,round(cnts),swtch2.str))
+
+  ggsave(paste0("VaryGDCondition",cndtn.i,".png"),width=5,height=5)
+  
+}
+```
+
+

@@ -1,0 +1,174 @@
+---
+title: "PlotBypassGDExperiments"
+author: "Scott Leighow"
+date: '2022-07-26'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+library(ggplot2)
+library(reshape2)
+library(ggbreak)
+```
+
+
+## Import and parse data
+
+```{r}
+
+counts.df = read.csv("T790MGeneDriveCounts.csv",header=T,stringsAsFactors=F)
+
+counts.df$condition = as.numeric(gsub("C","",counts.df$condition))
+counts.df$replicate = gsub("R","",counts.df$replicate)
+counts.df$day = as.numeric(gsub("D","",counts.df$day))
+
+counts.df$sen = as.numeric(gsub(",","",counts.df$sen))
+counts.df$res = as.numeric(gsub(",","",counts.df$res))
+counts.df$gd = as.numeric(gsub(",","",counts.df$gd))
+
+counts.df$sen.conc = as.numeric(gsub(",","",counts.df$sen.conc))
+counts.df$res.conc = as.numeric(gsub(",","",counts.df$res.conc))
+counts.df$gd.conc = as.numeric(gsub(",","",counts.df$gd.conc))
+
+# Calculate concentrations
+counts.df$sen.conc[counts.df$day>0] = counts.df$sen[counts.df$day>0]/counts.df$volume[counts.df$day>0]
+counts.df$res.conc[counts.df$day>0] = counts.df$res[counts.df$day>0]/counts.df$volume[counts.df$day>0]
+counts.df$gd.conc[counts.df$day>0] = counts.df$gd[counts.df$day>0]/counts.df$volume[counts.df$day>0]
+
+
+
+# So if we wanna flip the switch at >50% rebound, we want roughly >600k/mL
+
+# Reshape
+
+counts.rs = melt(counts.df,id.vars=c("condition","replicate","day"),measure.vars = c("sen.conc","res.conc","gd.conc"))
+
+```
+
+## Loop through conditions and plot
+
+```{r}
+cndtns = 1:3
+
+# Scaling factor; values are concentrations in k/mL and we want M/well (1 mL/well)
+sclng.fctr = 1/1000
+
+for (i in cndtns) {
+  
+  cndtn.i = cndtns[i]
+  
+  sub.counts = counts.rs[counts.rs$condition==cndtn.i,]
+  
+  # Aggregate counts
+  sub.agg = aggregate(sub.counts$value,
+                      by = list(condition = sub.counts$condition,
+                                day = sub.counts$day,
+                                population = sub.counts$variable),
+                     FUN = function(x) c(mean=mean(x),sem=sd(x)/sqrt(length(x))))
+  sub.agg = do.call(data.frame,sub.agg)
+  
+  # Remove GFP counts for -GD
+  if (cndtn.i==1) {
+    sub.agg = sub.agg[sub.agg$population!="gd.conc",]
+    clrs = c("#2ABAFC","#EE1D23")
+    x.lims = c(0,8.5)
+    x.breaks = c(0,4,8)
+    x.axis.break = NULL
+  } else if (cndtn.i==2) {
+    clrs = c("#2ABAFC","#EE1D23","#1AD31A")
+    x.lims = c(0,31)
+    x.breaks = c(0,7,14,30)
+    x.axis.break = scale_x_break(c(14.5,29))
+  } else if (cndtn.i==3) {
+    clrs = c("#2ABAFC","#EE1D23","#1AD31A")
+    x.lims = c(0,14.5)
+    x.breaks = c(0,7,14)
+    x.axis.break = NULL
+  }
+
+  # Plot
+  g = ggplot(sub.agg,aes(x=day,y=x.mean*sclng.fctr,color=population))+theme_bw()+
+    geom_line(size=2)+
+    geom_point(size=4)+
+    geom_errorbar(aes(ymin=(x.mean-x.sem)*sclng.fctr,ymax=(x.mean+x.sem)*sclng.fctr),width=0.2,size=1.25)+
+    scale_color_manual(values=clrs)+
+    scale_x_continuous(breaks=x.breaks,limits = x.lims)+
+    x.axis.break+
+    scale_y_continuous(limits=c(0,3.5))+
+    xlab("Days")+ylab("Population Size (M)")+
+    ggtitle(paste("Condition",cndtn.i))+
+    theme(
+      plot.title = element_text(size=22,face="bold",hjust=0.5),
+      axis.title = element_text(size=20,face="bold"),
+      axis.text = element_text(size=18,face="bold",color="black"),
+      legend.title = element_text(size=18,face="bold"),
+      legend.text = element_text(size=16,face="bold"),
+      axis.text.x.top = element_blank(),
+      axis.ticks.x.top = element_blank()
+    )+
+    guides(color="none")
+  
+  print(g)
+  
+  # ggsave(paste0("BaF3GeneDrive_Condition",cndtn.i,".png"),width=5,height=5)
+
+  
+  # # Check to see if we're ready to flip that switch
+  # cnts = sum(sub.agg$x.mean[sub.agg$population%in%c("res.conc","gd.conc")&sub.agg$day==max(sub.agg$day)])
+  # swtch2.str = cnts>0.5*init.conc
+  # print(paste(cndtn.i,round(cnts),swtch2.str))
+
+  
+}
+
+```
+
+```{r}
+## Plot inset of resistance for condition 2
+
+ cndtn.i = 2
+
+sub.counts = counts.rs[counts.rs$condition==cndtn.i,]
+
+# Aggregate counts
+sub.agg = aggregate(sub.counts$value,
+                    by = list(condition = sub.counts$condition,
+                              day = sub.counts$day,
+                              population = sub.counts$variable),
+                   FUN = function(x) c(mean=mean(x),sem=sd(x)/sqrt(length(x))))
+sub.agg = do.call(data.frame,sub.agg)
+
+sub.agg = sub.agg[sub.agg$population=="res.conc",]
+
+  clrs = c("#EE1D23")
+  x.lims = c(0,31)
+  x.breaks = c(0,7,14,30)
+  x.axis.break = scale_x_break(c(14.5,29))
+
+# Plot
+ggplot(sub.agg,aes(x=day,y=x.mean,color=population))+theme_bw()+
+  geom_line(size=2)+
+  geom_point(size=4)+
+  geom_errorbar(aes(ymin=(x.mean-x.sem),ymax=(x.mean+x.sem)),width=0.2,size=1.25)+
+  scale_color_manual(values=clrs)+
+  scale_x_continuous(breaks=x.breaks,limits = x.lims)+
+  x.axis.break+
+  scale_y_continuous(breaks=c(0,25,50,75),limits=c(0,75))+
+  xlab("Days")+ylab("Population Size (k)")+
+  ggtitle("Resistant Subopulation")+
+  theme(
+    plot.title = element_text(size=22,face="bold",hjust=0.5),
+    axis.title = element_text(size=20,face="bold"),
+    axis.text = element_text(size=18,face="bold",color="black"),
+    axis.text.x.top = element_blank(),
+    axis.ticks.x.top = element_blank()
+  )+
+  guides(color="none")
+
+ggsave("BaF3ResistanceInset.png",width=5,height=4)
+
+```
+
+
