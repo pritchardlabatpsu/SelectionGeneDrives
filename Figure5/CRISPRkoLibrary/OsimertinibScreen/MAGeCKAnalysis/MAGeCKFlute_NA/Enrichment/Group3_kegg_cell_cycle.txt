@@ -1,0 +1,2 @@
+ID	Description	NES	pvalue	p.adjust	GeneRatio	BgRatio	geneID	geneName	Count
+KEGG_hsa00310	Lysine degradation	0.672341597796143	0.0121261343090212	0.0147622504631563	1/3	63/15524	54904	NSD3	1
