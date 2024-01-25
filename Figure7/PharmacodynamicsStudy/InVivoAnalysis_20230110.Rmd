@@ -1,0 +1,729 @@
+---
+title: "InVivoTroubleshootingAnalysis"
+author: "Scott Leighow"
+date: "2023-01-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+rm(list=ls())
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(NatParksPalettes)
+library(reshape2)
+
+```
+
+## Select mice to sack for D0 analysis
+
+```{r}
+
+## Import data
+df = read.csv("PC9C2_D0Volumes_20230110.csv",header=T,stringsAsFactors=F)
+
+## Calculate volumes
+df$volume1 = pi*df$length1*df$width1*df$height1/6
+df$volume2 = pi*df$length2*df$width2*df$height2/6
+df$volume2 = ifelse(is.na(df$volume2),0,df$volume2)
+df$volume = rowSums(df[,c("volume1","volume2")])
+
+## Calculate total tumor volume
+smmry.df = df %>%
+  group_by(mouse) %>%
+  summarize(condition = unique(condition),
+            volume = sum(volume))
+
+## Draw 3 mice from each group with roughly same mean and standard deviation as population
+set.seed(10)
+to.sack = vector(length=4)
+names(to.sack) = c("C1","C2","C3","C4")
+for (condition in 1:4) {
+  
+  mean = mean(smmry.df$volume[smmry.df$condition==condition])
+  sd = sd(smmry.df$volume[smmry.df$condition==condition])
+
+  # Randomly subsample
+  subsamples = as.data.frame(matrix(nrow=1000,ncol=3))
+  colnames(subsamples) = c("mice","mean","sd")
+  for (i in 1:nrow(subsamples)) {
+    
+    # Randomly select 3 mice
+    sub.mice = sample(smmry.df$mouse[smmry.df$condition==condition],3)
+    subsamples$mice[i] = paste(sub.mice,collapse=",")
+    
+    # Calculate mean and sd of subset
+    subsamples$mean[i] = mean(smmry.df$volume[smmry.df$mouse%in%sub.mice])
+    subsamples$sd[i] = sd(smmry.df$volume[smmry.df$mouse%in%sub.mice])
+    
+  }
+  
+  subsamples$mean.diff = abs(subsamples$mean-mean)
+  subsamples$sd.diff = abs(subsamples$sd-sd)
+  
+  subsamples$tot.diff = subsamples$mean.diff+subsamples$sd.diff
+
+  # Find subsample that minimizes difference from population mean and sd
+  if (condition==1) {subsamples = subsamples[grepl("1",subsamples$mice),]} # for condition 1, include mouse 1 (outlier) to be sacked
+  if (condition==3) {subsamples = subsamples[grepl("20",subsamples$mice),]} # for condition 1, include mouse 1 (outlier) to be sacked
+
+  to.sack[condition] = subsamples$mice[which.min(subsamples$tot.diff)] # record mice to sack
+  
+}
+
+# Plot populations before and after sacking
+plot(smmry.df$condition,smmry.df$volume)
+
+to.sack.vec = as.numeric(unlist(strsplit(to.sack,",")))
+plot(smmry.df$condition[!smmry.df$mouse%in%to.sack.vec],smmry.df$volume[!smmry.df$mouse%in%to.sack.vec])
+
+```
+
+## Plot tumor volumes for switch 1 troubleshooting
+
+```{r}
+
+## Import and parse data
+swtch1.df = read.csv("InVivoPC9C2TroubleshootingSwitch1MeasurementsRaw_012323.csv",header=T,stringsAsFactors=F)
+swtch1.df$mouse = as.factor(swtch1.df$mouse)
+swtch1.df$mouse.flank = paste(swtch1.df$mouse,swtch1.df$flank)
+
+## Intermediate calculations
+
+swtch1.df$volume1 = pi*swtch1.df$length1*swtch1.df$width1*swtch1.df$height1/6
+swtch1.df$length2 = as.numeric(swtch1.df$length2)
+swtch1.df$volume2 = pi*swtch1.df$length2*swtch1.df$width2*swtch1.df$height2/6
+swtch1.df$volume2 = ifelse(is.na(swtch1.df$volume2),0,swtch1.df$volume2)
+swtch1.df$volume = rowSums(swtch1.df[,c("volume1","volume2")])
+
+## Find relative change in volume
+swtch1.df$rel.volume = NA
+mouse.flanks = unique(swtch1.df$mouse.flank)
+for (mouse.flank in mouse.flanks) {
+  
+  init.vol = swtch1.df$volume[swtch1.df$day==0&swtch1.df$mouse.flank==mouse.flank]
+  
+  swtch1.df$rel.volume[swtch1.df$mouse.flank==mouse.flank] = swtch1.df$volume[swtch1.df$mouse.flank==mouse.flank]/init.vol
+  
+}
+
+## Plot individual trajectories
+
+for (cndtn in 1:5) {
+
+  plot.cndtn = swtch1.df$condition==cndtn
+  
+  # # Plot absolute volumes
+  # g=ggplot(swtch1.df[plot.cndtn,],aes(x=day,y=volume,color=mouse.flank))+theme_bw()+
+  #   geom_point()+
+  #   geom_line()+
+  #   ggtitle(paste("Condition:",cndtn))+
+  #   theme(plot.title = element_text(hjust=0.5))
+  
+  # Plot relative volumes
+  g=ggplot(swtch1.df[plot.cndtn,],aes(x=day,y=rel.volume,color=mouse.flank))+theme_bw()+
+    geom_point()+
+    geom_line()+
+    ggtitle(paste("Condition:",cndtn))+
+    scale_color_manual(values=c(natparks.pals("Torres"),brewer.pal(8,"Paired")[c(8,7)]))+
+    theme(plot.title = element_text(hjust=0.5))
+  print(g)
+
+}
+
+## Summarize and plot data
+
+smmry.swtch1 = swtch1.df %>%
+  group_by(condition,day) %>%
+  summarize(vol.mean = mean(volume),
+            vol.sem = sd(volume)/sqrt(length(volume)),
+            rel.vol.mean = mean(rel.volume),
+            rel.vol.sem = sd(rel.volume)/sqrt(length(rel.volume)))
+
+smmry.swtch1$condition = as.factor(smmry.swtch1$condition)
+ggplot(smmry.swtch1,aes(x=day,y=vol.mean,color=condition))+theme_bw()+
+  geom_point(size=1.5)+
+  geom_line()+
+  geom_errorbar(aes(ymin=vol.mean-vol.sem,ymax=vol.mean+vol.sem),width=0.3)+
+  scale_color_manual(values=natparks.pals("DeathValley"),labels=c("0%","1%","3%","10%","30%"))
+
+ggplot(smmry.swtch1,aes(x=day,y=rel.vol.mean,color=condition))+theme_bw()+
+  geom_point(size=1.5)+
+  geom_line(size=1.25)+
+  geom_errorbar(aes(ymin=rel.vol.mean-rel.vol.sem,ymax=rel.vol.mean+rel.vol.sem),width=0.3,size=1.25)+
+  scale_y_continuous(breaks=c(0,0.5,1))+
+  scale_color_manual(values=natparks.pals("DeathValley"),labels=c("0%","1%","3%","10%","30%"))+
+  xlab("Days")+
+  ylab("Relative Volume")+
+  ggtitle("Tumor Dynamics")+
+    theme(
+    plot.title = element_text(size=20,face="bold",hjust=0.5),
+    axis.title = element_text(size=18,face="bold"),
+    axis.text = element_text(size=16,color="black",face="bold"),
+    legend.title = element_text(size=16,color="black",face="bold"),
+    legend.text = element_text(size=12,color="black",face="bold")
+  )
+
+clrs = rev(natparks.pals("Acadia"))[c(1,2,3,7,9)]
+
+for (cndtn in 2:5) {
+  g = ggplot(smmry.swtch1[smmry.swtch1$condition%in%c(1,cndtn),],aes(x=day,y=rel.vol.mean,color=condition))+theme_bw()+
+    geom_point(size=1.5)+
+    geom_line(size=1.25)+
+    geom_errorbar(aes(ymin=rel.vol.mean-rel.vol.sem,ymax=rel.vol.mean+rel.vol.sem),width=0.7,size=1.25)+
+    scale_y_continuous(breaks=c(0,0.5,1),limits = c(0,1.5))+
+    scale_color_manual(values=clrs[c(1,cndtn)],labels=c("0%","30%"))+
+    xlab("Days")+
+    ylab("Relative Tumor Volume")+
+    ggtitle("In Vivo Tumor Dynamics")+
+      theme(
+      plot.title = element_text(size=20,face="bold",hjust=0.5),
+      axis.title = element_text(size=18,face="bold"),
+      axis.text = element_text(size=16,color="black",face="bold"),
+      legend.title = element_text(size=16,color="black",face="bold"),
+      legend.text = element_text(size=12,color="black",face="bold")
+    )+
+    guides(color="none")
+  print(g)
+  # ggsave(paste0("InVivoGeneDriveDynamicsCondition",cndtn,".png"),width=5,height=4.5)
+}
+
+# Plot last graphic with red/green colors
+
+g = ggplot(smmry.swtch1[smmry.swtch1$condition%in%c(1,cndtn),],aes(x=day,y=rel.vol.mean,color=condition))+theme_bw()+
+    geom_point(size=1.5)+
+    geom_line(size=1.25)+
+    geom_errorbar(aes(ymin=rel.vol.mean-rel.vol.sem,ymax=rel.vol.mean+rel.vol.sem),width=0.7,size=1.25)+
+    scale_y_continuous(breaks=c(0,0.5,1),limits = c(0,1.5))+
+    scale_color_manual(values=c("#FF0002","#00D600"),labels=c("0%","30%"))+
+    xlab("Days")+
+    ylab("Relative Tumor Volume")+
+    ggtitle("In Vivo Tumor Dynamics")+
+      theme(
+      plot.title = element_text(size=20,face="bold",hjust=0.5),
+      axis.title = element_text(size=18,face="bold"),
+      axis.text = element_text(size=16,color="black",face="bold"),
+      legend.title = element_text(size=16,color="black",face="bold"),
+      legend.text = element_text(size=12,color="black",face="bold")
+    )+
+    guides(color="none")
+print(g)
+# ggsave(paste0("InVivoGeneDriveDynamicsRedGreenCondition",cndtn,".png"),width=5,height=4.5)
+
+
+```
+
+## Select mice to sack at beginning of switch 2
+
+```{r}
+
+### Run preceding chunk first ###
+
+## At beginning of switch 2 treatment, segregate mice into 2 groups of 3
+## One group continues on switch 2
+## The other is sacked and their tumors analyzed
+## Groups should heave roughly equal mean and variance for tumor volumes
+
+day.swtch2 = c(20,24,24,32,34) # Note times for switch 2 treatment for each condition
+names(day.swtch2) = c(5,4,3,2,1) # Note condition
+
+for (i in 1:length(day.swtch2)) {
+  
+  day.swtch2.i = day.swtch2[i]
+  cndtn.i = names(day.swtch2[i])
+  
+  # Subset on condition and timepoint
+  sub.swtch1 = swtch1.df[swtch1.df$condition==cndtn.i&swtch1.df$day==day.swtch2.i,]
+  
+  ## Calculate total tumor volume
+  sub.smmry = sub.swtch1 %>%
+    group_by(mouse) %>%
+    summarize(mean.vol = mean(rel.volume),
+              diff.vol = diff(volume))
+  
+  ## Randomly divide mice into two groups
+  rndm.splt = as.data.frame(matrix(nrow=1000,ncol=8))
+  colnames(rndm.splt) = c("mice1","mean1","sd1","mice2","mean2","sd2","mean.diff","sd.diff")
+  mice = sub.smmry$mouse
+  
+  set.seed(5)
+  for (i in 1:nrow(rndm.splt)) {
+    
+    # Randomly divide mice
+    mice1 = sample(mice,3)
+    mice2 = mice[!mice%in%mice1]
+    
+    rndm.splt$mice1[i] = paste(mice1,collapse=",")
+    rndm.splt$mice2[i] = paste(mice2,collapse=",")
+    
+    # Calculate mean and sd of subset
+    rndm.splt$mean1[i] = mean(sub.smmry$mean.vol[sub.smmry$mouse%in%mice1])
+    rndm.splt$sd1[i] = sd(sub.smmry$mean.vol[sub.smmry$mouse%in%mice1])
+    
+    rndm.splt$mean2[i] = mean(sub.smmry$mean.vol[sub.smmry$mouse%in%mice2])
+    rndm.splt$sd2[i] = sd(sub.smmry$mean.vol[sub.smmry$mouse%in%mice2])
+    
+  }
+  
+  # Calculate difference in mean and sd for random splits
+  rndm.splt$mean.diff = abs(rndm.splt$mean1-rndm.splt$mean2)
+  rndm.splt$sd.diff = abs(rndm.splt$sd1-rndm.splt$sd2)
+  
+  rndm.splt$diff = rndm.splt$mean.diff+rndm.splt$sd.diff
+  
+  # Find split with lowest difference in mean/sd
+  opt = which.min(rndm.splt$diff)
+  
+  print(paste0("Condition ",cndtn.i,": ",rndm.splt$mice1[opt]," and ",rndm.splt$mice2[opt]))
+  
+}
+
+
+```
+
+## Plot tumor volumes for switch 2 troubleshooting
+
+```{r}
+## Import and parse data
+swtch2.df = read.csv("InVivoPC9C2TroubleshootingSwitch2MeasurementsRaw_012323.csv",header=T,stringsAsFactors=F)
+swtch2.df$mouse = as.factor(swtch2.df$mouse)
+swtch2.df$mouse.flank = paste(swtch2.df$mouse,swtch2.df$flank)
+
+swtch2.wght = read.csv("InVivoPC9C2TroubleshootingSwitch2Weights_012323.csv",header=T,stringsAsFactors=F)
+swtch2.wght$mouse = as.factor(swtch2.wght$mouse)
+
+## Intermediate calculations
+
+swtch2.df$volume1 = pi*swtch2.df$length1*swtch2.df$width1*swtch2.df$height1/6
+swtch2.df$length2 = as.numeric(swtch2.df$length2)
+swtch2.df$volume2 = pi*swtch2.df$length2*swtch2.df$width2*swtch2.df$height2/6
+swtch2.df$volume2 = ifelse(is.na(swtch2.df$volume2),0,swtch2.df$volume2)
+swtch2.df$volume = rowSums(swtch2.df[,c("volume1","volume2")])
+
+## Find relative change in volume
+swtch2.df$rel.volume = NA
+mouse.flanks = unique(swtch2.df$mouse.flank)
+for (mouse.flank in mouse.flanks) {
+  
+  init.vol = swtch2.df$volume[swtch2.df$day==0&swtch2.df$mouse.flank==mouse.flank]
+  
+  swtch2.df$rel.volume[swtch2.df$mouse.flank==mouse.flank] = swtch2.df$volume[swtch2.df$mouse.flank==mouse.flank]/init.vol
+  
+}
+
+## Plot individual trajectories
+
+for (cndtn in 1:7) {
+
+  plot.cndtn = swtch2.df$condition==cndtn
+  
+  g=ggplot(swtch2.df[plot.cndtn,],aes(x=day,y=volume,color=mouse.flank))+theme_bw()+
+    geom_point()+
+    geom_line()+
+    ggtitle(paste("Condition:",cndtn))+
+    theme(plot.title = element_text(hjust=0.5))
+  print(g)
+
+}
+
+## Summarize data
+
+smmry.swtch2 = swtch2.df %>%
+  group_by(condition,day) %>%
+  summarize(vol.mean = mean(volume),
+            vol.sem = sd(volume)/sqrt(length(volume)),
+            rel.vol.mean = mean(rel.volume),
+            rel.vol.sem = sd(rel.volume)/sqrt(length(rel.volume)))
+smmry.swtch2$condition = as.factor(smmry.swtch2$condition)
+
+
+## Compare different initial GD populations (conditions 1-5)
+
+ggplot(smmry.swtch2[smmry.swtch2$condition%in%(1:5),],aes(x=day,y=vol.mean,color=condition))+theme_bw()+
+  geom_point(size=1.5)+
+  geom_line()+
+  geom_errorbar(aes(ymin=vol.mean-vol.sem,ymax=vol.mean+vol.sem),width=0.3)+
+    scale_color_manual("% GD", values=natparks.pals("DeathValley"),labels=c("0%","50%","80%","95%","100%"))
+
+ggplot(smmry.swtch2[smmry.swtch2$condition%in%(1:5),],aes(x=day,y=rel.vol.mean,color=condition))+theme_bw()+
+  geom_point(size=1.5)+
+  geom_line(size=1.25)+
+  geom_errorbar(aes(ymin=rel.vol.mean-rel.vol.sem,ymax=rel.vol.mean+rel.vol.sem),width=0.75,size=1.25)+
+  scale_color_manual("Percent\nGene Drive", values=natparks.pals("DeathValley"),labels=c("0%","50%","80%","95%","100%"))+
+  xlab("Days")+
+  ylab("Relative Tumor Volume")+
+  scale_y_continuous(limits=c(0,2.45))+
+  ggtitle("In Vivo Tumor Dynamics")+
+    theme(
+    plot.title = element_text(size=20,face="bold",hjust=0.5),
+    axis.title = element_text(size=18,face="bold"),
+    axis.text = element_text(size=16,color="black",face="bold"),
+    legend.title = element_text(size=16,color="black",face="bold",hjust=0.5),
+    legend.text = element_text(size=12,color="black",face="bold",hjust=0.5)
+  )
+# ggsave("Switch2TroubleshootingInVivo.png",width=6,height=4)
+
+## Compare different conditions when GD = 50% (conditions 2, 6, and 7)
+
+ggplot(smmry.swtch2[smmry.swtch2$condition%in%c(2,7),],aes(x=day,y=vol.mean,color=condition))+theme_bw()+
+  geom_point(size=1.5)+
+  geom_line(size=1.25)+
+  geom_errorbar(aes(ymin=vol.mean-vol.sem,ymax=vol.mean+vol.sem),width=0.3,size=1.25)+
+  scale_color_manual("5-FC Dose",values=natparks.pals("Torres")[c(1,3)],labels=c("500 mg/kg","800 mg/kg"))+
+  xlab("Days")+
+  ylab("Tumor Volume (mm3)")+
+  ggtitle("Tumor Dynamics")+
+    theme(
+    plot.title = element_text(size=20,face="bold",hjust=0.5),
+    axis.title = element_text(size=18,face="bold"),
+    axis.text = element_text(size=16,color="black",face="bold"),
+    legend.title = element_text(size=16,color="black",face="bold"),
+    legend.text = element_text(size=12,color="black",face="bold")
+  )
+
+ggplot(smmry.swtch2[smmry.swtch2$condition%in%c(2,6),],aes(x=day,y=vol.mean,color=condition))+theme_bw()+
+  geom_point(size=1.5)+
+  geom_line(size=1.25)+
+  geom_errorbar(aes(ymin=vol.mean-vol.sem,ymax=vol.mean+vol.sem),width=0.4,size=1.25)+
+  scale_color_manual("Condition",values=c("#8F00FF","#DA7580"),labels=c("baseline","+dim"))+
+  xlab("Days")+
+  ylab("Tumor Volume (mm3)")+
+  ylim(80,450)+
+  ggtitle("In Vivo Tumor Dynamics")+
+    theme(
+    plot.title = element_text(size=20,face="bold",hjust=0.5),
+    axis.title = element_text(size=18,face="bold"),
+    axis.text = element_text(size=16,color="black",face="bold"),
+    legend.title = element_text(size=16,color="black",face="bold"),
+    legend.text = element_text(size=12,color="black",face="bold")
+  )+
+  guides(color="none")
+# ggsave("SwitchOverlapResults.png",width=5,height=4.5)
+
+# Alt: plot relative tumor volume comparing +/-dim
+ggplot(smmry.swtch2[smmry.swtch2$condition%in%c(2,6),],aes(x=day,y=rel.vol.mean,color=condition))+theme_bw()+
+  geom_point(size=1.5)+
+  geom_line(size=1.25)+
+  geom_errorbar(aes(ymin=rel.vol.mean-rel.vol.sem,ymax=rel.vol.mean+rel.vol.sem),width=0.4,size=1.25)+
+  scale_color_manual("Condition",values=c("#8F00FF","#DA7580"),labels=c("baseline","+dim"))+
+  xlab("Days")+
+  ylab("Tumor Volume (mm3)")+
+  ylim(0.4,2.3)+
+  ggtitle("In Vivo Tumor Dynamics")+
+    theme(
+    plot.title = element_text(size=20,face="bold",hjust=0.5),
+    axis.title = element_text(size=18,face="bold"),
+    axis.text = element_text(size=16,color="black",face="bold"),
+    legend.title = element_text(size=16,color="black",face="bold"),
+    legend.text = element_text(size=12,color="black",face="bold")
+  )+
+  guides(color="none")
+# ggsave("SwitchOverlapResultsRelVolume.png",width=5,height=4.5)
+
+
+ggplot(smmry.swtch2[smmry.swtch2$condition%in%c(2,4,6,7),],aes(x=day,y=rel.vol.mean,color=condition))+theme_bw()+
+  geom_point(size=1.5)+
+  geom_line(size=1.25)+
+  geom_errorbar(aes(ymin=rel.vol.mean-rel.vol.sem,ymax=rel.vol.mean+rel.vol.sem),width=0.3,size=1.25)+
+  scale_color_manual(values=natparks.pals("Torres")[c(1,4,2,3)],labels=c("50% GD baseline","95% GD","50% GD +dim","50% GD high 5-FC"))+
+    xlab("Days")+
+  ylab("Tumor Volume (mm3)")+
+  ggtitle("Tumor Dynamics")+
+    theme(
+    plot.title = element_text(size=20,face="bold",hjust=0.5),
+    axis.title = element_text(size=18,face="bold"),
+    axis.text = element_text(size=16,color="black",face="bold"),
+    legend.title = element_text(size=16,color="black",face="bold"),
+    legend.text = element_text(size=12,color="black",face="bold")
+  )
+
+## Summarize and plot weight data
+
+# Calculate relative change in weight
+swtch2.wght$rel.weight = NA
+mice = unique(swtch2.wght$mouse)
+for (mouse in mice) {
+  
+  init.weight = swtch2.wght$weight[swtch2.wght$day==0&swtch2.wght$mouse==mouse]
+  
+  swtch2.wght$rel.weight[swtch2.wght$mouse==mouse] = swtch2.wght$weight[swtch2.wght$mouse==mouse]/init.weight
+  
+}
+
+# Summarize relative weight
+
+smmry.wght = swtch2.wght %>%
+  group_by(condition,day) %>%
+  summarize(rel.wght.mean = mean(rel.weight),
+            rel.wght.sem = sd(rel.weight)/sqrt(length(rel.weight)))
+smmry.wght$condition = as.factor(smmry.wght$condition)
+
+ggplot(smmry.wght,aes(x=day,y=rel.wght.mean,color=condition))+theme_bw()+
+  geom_point(size=2.5)+
+  geom_line(size=1.2)+
+  geom_errorbar(aes(ymin=rel.wght.mean-rel.wght.sem,ymax=rel.wght.mean+rel.wght.sem),width=0.3,size=1.2)+
+  ylim(0.8,1.2)+
+  xlab("Days")+
+  ylab("Relative Weight")+
+  ggtitle("Change in Weight")+
+  scale_color_manual("5-FC Dose",values=natparks.pals("Torres")[c(1,3)],
+                     labels=c("500 mg/kg","800 mg/kg"))+
+    theme(
+    plot.title = element_text(size=20,face="bold",hjust=0.5),
+    axis.title = element_text(size=18,face="bold"),
+    axis.text = element_text(size=16,color="black",face="bold"),
+    legend.title = element_text(size=16,color="black",face="bold"),
+    legend.text = element_text(size=12,color="black",face="bold")
+  )
+
+```
+
+## Population Breakdown: analyze flow data
+
+```{r}
+
+## Read in and parse data
+flow.df = read.csv("InVivoEvolutionCounts.csv",header=T,stringsAsFactors=F)
+
+flow.df$perc.GFP = as.numeric(gsub("%","",flow.df$perc.GFP))
+flow.df$perc.mCh = as.numeric(gsub("%","",flow.df$perc.mCh))
+
+flow.df$flow.label.mouse = gsub("L|R","",flow.df$sample)
+flow.df$flow.label.mouse[1:5] = NA
+
+# Annotate samples
+decode.df = read.csv("InVivoEvolutionSampleDecoder.csv",header=T,stringsAsFactors=F)
+
+mrgd.df = merge(flow.df,decode.df,
+                by.x = "flow.label.mouse",by.y = "flow.label")
+
+# Note sample proportions of grafted cell suspensions
+pre.df = flow.df[grepl("GD",flow.df$sample),]
+pre.df$gd.condition = as.numeric(gsub("D0 |GD","",pre.df$sample))
+
+mrgd.df$pre.perc.GFP = NA
+for (i in 1:nrow(pre.df)) {
+  
+  gd.cndtn.i = pre.df$gd.condition[i]
+  pre.perc.GFP.i = pre.df$perc.GFP[i]
+  
+  mrgd.df$pre.perc.GFP[mrgd.df$gd.condition==gd.cndtn.i] = pre.perc.GFP.i
+  
+}
+
+## Visualize results
+
+# Plot GFP percentage before and after grafting
+mrgd.df$gd.condition = as.factor(mrgd.df$gd.condition)
+ggplot(mrgd.df[mrgd.df$day==-2&mrgd.df$gd.condition!=0,],aes(x=pre.perc.GFP,y=perc.GFP,color=gd.condition))+theme_bw()+
+  geom_point(size=2.5,alpha=0.8)+
+  scale_x_continuous(trans='log10')+
+  scale_y_continuous(trans='log10',limits = c(0.3,14))+
+  ggtitle("Day 0 Tumor Proportions")+
+  xlab("Pre-grafting")+
+  ylab("Post-grafting")+
+  scale_color_manual(values=natparks.pals("DeathValley")[c(2:5)],labels=c("1%","3%","10%","30"))
+
+
+
+
+# Plot pie charts of tumor make up
+mrgd.df$perc.dn = 100-mrgd.df$perc.GFP-mrgd.df$perc.mCh
+
+mrgd.df = mrgd.df %>%
+  arrange(day,gd.condition)
+
+for (i in 1:nrow(mrgd.df)) {
+  plot.df.i = data.frame(population = c("sen","res","gd"),
+                       percentage = c(mrgd.df$perc.dn[i],
+                                      mrgd.df$perc.mCh[i],
+                                      mrgd.df$perc.GFP[i]))
+  
+  g = ggplot(plot.df.i, aes(x="", y=percentage, fill=population)) + theme_void()+
+    geom_bar(stat="identity", width=1) +
+    coord_polar("y", start=0)+
+    scale_fill_manual("Subpopulation",labels=c("Gene Drive","Resistant","Sensitive"),values=c("#1AD31A","#EE1D23","#2ABAFC"))+
+    ggtitle(paste0("Sample: ",mrgd.df$sample[i]," (D",mrgd.df$day[i]," ",mrgd.df$gd.condition[i],"GD)"))+
+    theme(
+      plot.title = element_text(hjust=0.5,face="bold")
+    )
+  print(g)
+}
+
+## Plot the relative tumor volumes and population breakdown
+
+# First summarize population breakdown
+
+mrgd.smmry.GFP = mrgd.df %>%
+  group_by(condition,day) %>%
+  summarize(mean = mean(perc.GFP),
+            sem = sd(perc.GFP)/sqrt(length(perc.GFP)))
+mrgd.smmry.GFP$population = "GFP"
+
+mrgd.smmry.mCh = mrgd.df %>%
+  group_by(condition,day) %>%
+  summarize(mean = mean(perc.mCh),
+            sem = sd(perc.mCh)/sqrt(length(perc.mCh)))
+mrgd.smmry.mCh$population = "mCh"
+
+mrgd.smmry.dn = mrgd.df %>%
+  group_by(condition,day) %>%
+  summarize(mean = mean(perc.dn),
+            sem = sd(perc.dn)/sqrt(length(perc.dn)))
+mrgd.smmry.dn$population = "dn"
+
+mrgd.smmry = rbind(mrgd.smmry.GFP,mrgd.smmry.mCh,mrgd.smmry.dn)
+
+# Note average tumor size
+
+mrgd.smmry$rel.vol.mean = NA
+mrgd.smmry$rel.vol.sem = NA
+
+for (i in 1:nrow(mrgd.smmry)) {
+  
+  day.i = mrgd.smmry$day[i]
+  day.i = ifelse(day.i==-2,0,day.i)
+  cndtn.i = mrgd.smmry$condition[i]
+  
+  mrgd.smmry$rel.vol.mean[i] = smmry.swtch1$rel.vol.mean[smmry.swtch1$condition==cndtn.i&smmry.swtch1$day==day.i]
+  mrgd.smmry$rel.vol.sem[i] = smmry.swtch1$rel.vol.sem[smmry.swtch1$condition==cndtn.i&smmry.swtch1$day==day.i]
+  
+}
+
+# Scale populations by tumor size
+mrgd.smmry$mean.scaled = mrgd.smmry$mean*mrgd.smmry$rel.vol.mean
+mrgd.smmry$sem.scaled = mrgd.smmry$sem*mrgd.smmry$rel.vol.mean
+
+# Plot 
+mrgd.smmry$day[mrgd.smmry$day==-2] = 0
+mrgd.smmry$day = as.factor(mrgd.smmry$day)
+
+mrgd.smmry$population = factor(mrgd.smmry$population,levels = c("dn","mCh","GFP"))
+
+save = mrgd.smmry[mrgd.smmry$condition==cndtn.i,]
+test = mrgd.smmry[mrgd.smmry$condition==cndtn.i&mrgd.smmry$day==44,]
+
+for (cndtn.i in 1:5) {
+  
+  # Need to add height sem so error bars match top of bars
+  plot.df = mrgd.smmry[mrgd.smmry$condition==cndtn.i,]
+  plot.df$error.bar.min = NA
+  
+  days = unique(plot.df$day)
+  pops = c("GFP","mCh","dn")
+  for (i in 1:length(days)) { # for each day
+    day.i = days[i]
+    for (j in 1:length(pops)) { # for each population
+      pop.j = pops[j]
+      if (pop.j=="GFP") { # gene drive population is plotted first, so no need to add to stack
+        plot.df$error.bar.min[plot.df$day==day.i&plot.df$population==pop.j] =
+          plot.df$mean.scaled[plot.df$day==day.i&plot.df$population==pop.j]
+      } 
+      else if (pop.j=="mCh") { # resistant population is plotted second, so add height of gene drive stack
+        plot.df$error.bar.min[plot.df$day==day.i&plot.df$population==pop.j] =
+          plot.df$mean.scaled[plot.df$day==day.i&plot.df$population==pop.j] +
+          plot.df$mean.scaled[plot.df$day==day.i&plot.df$population=="GFP"]
+      }
+      else if (pop.j=="dn") { # double negative (sensitive) population is plotted last, so add height of all stacks - same as adding height of rel.vol.mean
+        plot.df$error.bar.min[plot.df$day==day.i&plot.df$population==pop.j] = plot.df$rel.vol.mean[plot.df$day==day.i&plot.df$population==pop.j]*100
+
+        # plot.df$error.bar.min[plot.df$day==day.i&plot.df$population==pop.j] =
+        #   plot.df$mean.scaled[plot.df$day==day.i&plot.df$population==pop.j] +
+        #   plot.df$mean.scaled[plot.df$day==day.i&plot.df$population=="GFP"] +
+        #   plot.df$mean.scaled[plot.df$day==day.i&plot.df$population=="GFP"]
+      }
+    }
+  }
+  
+  # If population is very small, don't plot error bars (as in initial resistant population)
+  plot.df$error.bar.min = ifelse(plot.df$mean<1,NA,plot.df$error.bar.min)
+  plot.df$error.bar.min[plot.df$day==0&plot.df$condition=="dn"] = NA
+
+  
+  g=ggplot(plot.df, aes(fill=population, y=mean.scaled, x=day))+theme_bw()+
+    geom_bar(position="stack", stat="identity",color="black")+
+    # Plot some slightly thicker, black error bars before the real ones so they appear outlined
+    geom_errorbar(aes(ymin=error.bar.min+sem.scaled,ymax=error.bar.min+sem.scaled),color="black",width=0.265,size=1.75)+
+    geom_linerange(aes(ymin=error.bar.min,ymax=error.bar.min+sem.scaled,color=population),color="black",size=1.75)+
+    # Plot the error bars with color
+    geom_errorbar(aes(ymin=error.bar.min+sem.scaled,ymax=error.bar.min+sem.scaled,color=population),width=0.25,size=1)+
+    geom_linerange(aes(ymin=error.bar.min,ymax=error.bar.min+sem.scaled,color=population),size=1)+
+    scale_fill_manual("Subpopulation",labels=c("Sensitive","Resistant","Gene Drive"),values=c("#2ABAFC","#EE1D23","#1AD31A"))+
+    scale_color_manual("Subpopulation",labels=c("Sensitive","Resistant","Gene Drive"),values=c("#2ABAFC","#EE1D23","#1AD31A"))+
+    xlab("Day")+
+    ylab("Subpopulation Abundance")+
+    ylim(0,140)+
+    ggtitle(paste0("Condition ",cndtn.i))+
+    theme(
+    plot.title = element_text(size=20,face="bold",hjust=0.5),
+    axis.title = element_text(size=18,face="bold"),
+    axis.text = element_text(size=16,color="black",face="bold"),
+    legend.title = element_text(size=16,color="black",face="bold"),
+    legend.text = element_text(size=12,color="black",face="bold")
+  )
+  print(g)
+  # ggsave(paste0("SubpopulationBreakdown",cndtn.i,".png"),width=6.5,height=5)
+}
+
+```
+
+## Plot switch 1 condition 5 with untreated control
+
+```{r}
+
+## Normalize counts of C2.1 to have D0 be syncd with C1.5
+
+swtch2.sub = swtch2.df[swtch2.df$condition==1&swtch2.df$day>=4,]
+swtch2.sub$day = swtch2.sub$day - 4
+
+# Find relative change in volume
+swtch2.sub$rel.volume = NA
+mouse.flanks = unique(swtch2.sub$mouse.flank)
+for (mouse.flank in mouse.flanks) {
+  
+  init.vol = swtch2.sub$volume[swtch2.sub$day==0&swtch2.sub$mouse.flank==mouse.flank]
+  
+  swtch2.sub$rel.volume[swtch2.sub$mouse.flank==mouse.flank] = swtch2.sub$volume[swtch2.sub$mouse.flank==mouse.flank]/init.vol
+  
+}
+
+# Summarize
+
+smmry.sub2 = swtch2.sub %>%
+  group_by(condition,day) %>%
+  summarize(vol.mean = mean(volume),
+            vol.sem = sd(volume)/sqrt(length(volume)),
+            rel.vol.mean = mean(rel.volume),
+            rel.vol.sem = sd(rel.volume)/sqrt(length(rel.volume)))
+smmry.sub2$condition = paste0("2.",smmry.sub2$condition)
+smmry.sub2$condition = as.factor(smmry.sub2$condition)
+
+# Concatenate dataframes
+
+smmry.sub1 = smmry.swtch1[smmry.swtch1$condition%in%c(1,5),]
+smmry.sub1$condition = paste0("1.",smmry.sub1$condition)
+
+smmry.sub = rbind(smmry.sub1,smmry.sub2)
+
+ggplot(smmry.sub,aes(x=day,y=rel.vol.mean,color=condition))+theme_bw()+
+    geom_point(size=1.5)+
+    geom_line(size=1.25)+
+    geom_errorbar(aes(ymin=rel.vol.mean-rel.vol.sem,ymax=rel.vol.mean+rel.vol.sem),width=0.7,size=1.25)+
+    # scale_y_continuous(breaks=c(0,0.5,1),limits = c(0,1.5))+
+    scale_color_manual(values=c(clrs[c(1,5)],"gray50"),labels=c("0%","30%","untreated"))+
+    xlab("Days")+
+    ylab("Relative Volume (mm3)")+
+    ggtitle("In Vivo Tumor Dynamics")+
+      theme(
+      plot.title = element_text(size=20,face="bold",hjust=0.5),
+      axis.title = element_text(size=18,face="bold"),
+      axis.text = element_text(size=16,color="black",face="bold"),
+      legend.title = element_text(size=16,color="black",face="bold"),
+      legend.text = element_text(size=12,color="black",face="bold")
+    )+
+    guides(color="none")
+# ggsave("Condition5WithUntreatedControl.png",width=5,height=4.5)
+
+```
